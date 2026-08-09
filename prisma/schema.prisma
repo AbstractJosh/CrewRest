@@ -1,0 +1,91 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Pilot {
+  id              String   @id @default(cuid())
+  crewId          String   @unique
+  name            String
+  aircraftType    String?
+  homeCity        String?
+  homeStationCode String?
+  homeStationName String?
+  /** Minimum off-window length, in hours, worth showing as a commute opportunity. */
+  minOffHours     Int      @default(24)
+  /**
+   * Minutes needed to get between the airport and the train station at either end of a trip:
+   * added to duty release before travel can start, and required before report time on return.
+   */
+  airportTransferMinutes Int @default(90)
+  createdAt       DateTime @default(now())
+
+  schedules ScheduleUpload[]
+}
+
+model ScheduleUpload {
+  id         String   @id @default(cuid())
+  pilotId    String
+  period     String
+  uploadedAt DateTime @default(now())
+  rawText    String
+
+  pilot       Pilot        @relation(fields: [pilotId], references: [id])
+  dutyPeriods DutyPeriod[]
+  offWindows  OffWindow[]
+
+  @@index([pilotId])
+}
+
+model DutyPeriod {
+  id         String    @id @default(cuid())
+  scheduleId String
+  /** MB — report for duty. */
+  startAt    DateTime
+  /** MS — duty release. The pilot is free from here; drives both display and off-window math. */
+  endAt      DateTime
+  /** DSB — earliest the airline may roster the next duty. Not a travel restriction. Null for day-offs. */
+  restEndsAt DateTime?
+  type       String
+  rawCode    String
+  flightLegs Json?
+  sortIndex  Int
+
+  schedule ScheduleUpload @relation(fields: [scheduleId], references: [id])
+
+  @@index([scheduleId])
+}
+
+model OffWindow {
+  id              String   @id @default(cuid())
+  scheduleId      String
+  startAt         DateTime
+  endAt           DateTime
+  durationMinutes Int
+  kind            String
+  travelEligible  Boolean  @default(true)
+
+  schedule   ScheduleUpload      @relation(fields: [scheduleId], references: [id])
+  commitment CommuteCommitment?
+
+  @@index([scheduleId])
+}
+
+model CommuteCommitment {
+  id             String   @id @default(cuid())
+  offWindowId    String   @unique
+  outboundTrain  Json
+  returnTrain    Json
+  committedAt    DateTime @default(now())
+
+  offWindow OffWindow @relation(fields: [offWindowId], references: [id])
+}
