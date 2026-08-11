@@ -961,7 +961,7 @@ describe("mapTcddResponse", () => {
   it("takes departure from the first segment and arrival from the last", () => {
     const [train] = outbound();
     // 06:30 → 09:25 Türkiye local on 2026-08-15. Reading segments[0].arrivalTime instead would
-    // give 06:39 — arrival at the first intermediate stop, not at Eskişehir.
+    // give 06:56 — arrival at the first intermediate stop, not at Eskişehir.
     assert.equal(train.departureAt.toISOString(), "2026-08-15T03:30:00.000Z");
     assert.equal(train.arrivalAt.toISOString(), "2026-08-15T06:25:00.000Z");
     assert.equal(train.durationMinutes, 175);
