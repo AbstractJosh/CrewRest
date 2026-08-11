@@ -14,7 +14,7 @@ the request is an anonymous availability search, not a booking.
 
 ## How they were trimmed
 
-The originals are 573 KB combined. Trimming **deleted only** — no retained value was edited, so
+The pre-trim captures total ~2.8 MB; trimming takes them to ~66 KB combined. Trimming **deleted only** — no retained value was edited, so
 every field present is verbatim what TCDD sent. Removed:
 
 - all trains except the ones listed below
@@ -28,8 +28,8 @@ every field present is verbatim what TCDD sent. Removed:
 
 | Train | Why |
 | --- | --- |
-| 81034 | Several cabin classes at once: C ×12, Y1 ×133, DSB ×2 |
-| 81030 | DSB-only — must map to `isSoldOut: true`, because a pilot cannot book a wheelchair space |
+| 81034 | Several cabin classes at once: C ×12, Y1 ×133, DSB ×2; also carries L (LOCA) at availabilityCount: 0 |
+| 81030 | DSB-only — must map to `isSoldOut: true`, because a pilot cannot book a wheelchair space; also carries L (LOCA) at availabilityCount: 0 |
 | 12002 | Overnight, 22:47 → 03:19, crossing midnight |
 
 `tcdd-esk-ist.json` — Eskişehir → İstanbul(Söğütlüçeşme)

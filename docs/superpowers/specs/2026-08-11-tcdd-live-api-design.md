@@ -153,7 +153,7 @@ so it does not read as a violation later.
 Both probe captures get trimmed and committed as fixtures. Trimming **deletes only** — no retained
 value is edited, so every field left is verbatim what TCDD sent. Removed: trains outside the
 chosen set, the `cars` seat maps, `bookingClassCapacities`, `trainSegments`, and all station
-fields except `id` and `name`. That takes the pair from 573 KB to 43 KB + 23 KB. A README beside
+fields except `id` and `name`. That takes the pair from ~2.8 MB to ~66 KB combined. A README beside
 them records exactly this.
 
 Istanbul → Eskişehir (`tcdd-ist-esk.json`):
