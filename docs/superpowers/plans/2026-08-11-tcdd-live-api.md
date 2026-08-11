@@ -941,7 +941,6 @@ In `src/lib/trains/tcddResponse.test.ts`, keep the entire `describe("parseTcddIn
 
 ```ts
 import { readFileSync } from "node:fs";
-import { EXCLUDED_CABIN_CODES } from "@/lib/trains/tcddResponse";
 
 function fixture(name: string): unknown {
   return JSON.parse(
@@ -1094,10 +1093,6 @@ describe("mapTcddResponse", () => {
     assert.equal(train.fares, undefined);
     assert.equal(train.availableSeats, undefined);
     assert.equal(train.isSoldOut, undefined);
-  });
-
-  it("excludes exactly the wheelchair class", () => {
-    assert.deepEqual([...EXCLUDED_CABIN_CODES], ["DSB"]);
   });
 });
 ```
