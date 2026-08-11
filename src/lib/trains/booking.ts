@@ -48,8 +48,8 @@ export function buildBookingUrl(
   if (!from || !to) return EBILET_SEARCH_URL;
 
   const replacements: Record<string, string> = {
-    "{from}": encodeURIComponent(from),
-    "{to}": encodeURIComponent(to),
+    "{from}": encodeURIComponent(from.name),
+    "{to}": encodeURIComponent(to.name),
     "{date}": turkeyDateKey(option.departureAt),
     "{time}": formatTurkeyTime(option.departureAt),
   };

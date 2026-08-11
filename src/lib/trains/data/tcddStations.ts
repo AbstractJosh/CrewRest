@@ -11,35 +11,42 @@
  * than throw, so the fallback timetable answers instead.
  */
 
+/** TCDD needs both halves: the id identifies the station, the name is echoed back in the body. */
+export interface TcddStation {
+  id: number;
+  name: string;
+}
+
 /**
- * TCDD station identifiers, keyed by CrewRest code.
- *
- * These are the names TCDD's own booking site uses. If the API you are pointed at wants numeric
- * ids instead, override the whole map with `TCDD_STATION_IDS` in the environment — see
- * `parseStationOverrides` below — rather than editing this file per deployment.
+ * Verified against TCDD's own station service (`cdn-api-prod-ytp…/datas/stations.json`) on
+ * 2026-08-11. Regenerate by re-reading that file rather than by editing ids by hand.
  */
-const DEFAULT_TCDD_STATION_IDS: Record<string, string> = {
-  IST: "İSTANBUL(SÖĞÜTLÜÇEŞME)",
-  ESK: "ESKİŞEHİR",
-  ANK: "ANKARA GAR",
-  KNY: "KONYA",
-  KRM: "KARAMAN",
+const DEFAULT_TCDD_STATIONS: Record<string, TcddStation> = {
+  IST: { id: 1325, name: "İSTANBUL(SÖĞÜTLÜÇEŞME)" },
+  ESK: { id: 93, name: "ESKİŞEHİR" },
+  ANK: { id: 98, name: "ANKARA GAR" },
+  KNY: { id: 796, name: "KONYA" },
+  KRM: { id: 791, name: "KARAMAN" },
 };
 
 /**
- * Reads `TCDD_STATION_IDS`, a JSON object of `{ "IST": "<tcdd id>", … }`.
+ * Reads `TCDD_STATION_IDS`, a JSON object of `{ "IST": { "id": 1325, "name": "…" }, … }`.
  *
  * Malformed JSON is ignored rather than fatal: a typo in an env var should degrade to the
  * built-in mapping, not take the whole app down on a page render.
  */
-function parseStationOverrides(raw: string | undefined): Record<string, string> {
+function parseStationOverrides(raw: string | undefined): Record<string, TcddStation> {
   if (!raw) return {};
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-    const result: Record<string, string> = {};
-    for (const [code, id] of Object.entries(parsed as Record<string, unknown>)) {
-      if (typeof id === "string" && id.length > 0) result[code] = id;
+    const result: Record<string, TcddStation> = {};
+    for (const [code, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+      const { id, name } = value as { id?: unknown; name?: unknown };
+      if (typeof id === "number" && Number.isInteger(id) && typeof name === "string" && name !== "") {
+        result[code] = { id, name };
+      }
     }
     return result;
   } catch {
@@ -48,21 +55,21 @@ function parseStationOverrides(raw: string | undefined): Record<string, string> 
   }
 }
 
-const STATION_IDS: Record<string, string> = {
-  ...DEFAULT_TCDD_STATION_IDS,
+const STATIONS_BY_CODE: Record<string, TcddStation> = {
+  ...DEFAULT_TCDD_STATIONS,
   ...parseStationOverrides(process.env.TCDD_STATION_IDS),
 };
 
-/** TCDD's identifier for a CrewRest station code, or null if we don't know it. */
-export function toTcddStation(code: string): string | null {
-  return STATION_IDS[code] ?? null;
+/** TCDD's station for a CrewRest code, or null if we don't map it. */
+export function toTcddStation(code: string): TcddStation | null {
+  return STATIONS_BY_CODE[code] ?? null;
 }
 
-/** The CrewRest code for a TCDD identifier, or null if it isn't one we map. */
-export function fromTcddStation(tcddId: string): string | null {
-  const normalized = tcddId.trim().toLocaleUpperCase("tr-TR");
-  for (const [code, id] of Object.entries(STATION_IDS)) {
-    if (id.trim().toLocaleUpperCase("tr-TR") === normalized) return code;
+/** The CrewRest code for a TCDD station name, or null if it isn't one we map. */
+export function fromTcddStation(name: string): string | null {
+  const normalized = name.trim().toLocaleUpperCase("tr-TR");
+  for (const [code, station] of Object.entries(STATIONS_BY_CODE)) {
+    if (station.name.trim().toLocaleUpperCase("tr-TR") === normalized) return code;
   }
   return null;
 }

@@ -113,7 +113,7 @@ export class TcddTrainProvider implements TrainProvider {
     const cached = cache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return cached.options;
 
-    const payload = await this.fetchTimetable(origin, destination, dateKey);
+    const payload = await this.fetchTimetable(origin.name, destination.name, dateKey);
     const options = mapTcddResponse(payload, { originCode, destinationCode, date });
 
     cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, options });
