@@ -4,16 +4,19 @@ import { TcddTrainProvider, readTcddConfigFromEnv } from "@/lib/trains/TcddTrain
 import type { TrainProvider } from "@/lib/trains/TrainProvider";
 
 const staticProvider = new StaticTrainProvider();
-const tcddConfig = readTcddConfigFromEnv();
 
 /**
- * Live TCDD data when it's configured, the curated timetable otherwise — and the curated
- * timetable again if the live endpoint fails mid-request. Without `TCDD_API_BASE_URL` set, the
- * app behaves exactly as it did before the integration existed.
+ * Live TCDD data, with the curated timetable standing by.
+ *
+ * The live path needs no credential and no configuration — the endpoint is known and the token is
+ * scraped at runtime — so it is on by default. It is also unofficial and may fail at any time,
+ * which is exactly what `FallbackTrainProvider` is for: a failed request degrades to estimates,
+ * and the `source` on each `TrainOption` tells the UI which one answered.
  */
-export const trainProvider: TrainProvider = tcddConfig
-  ? new FallbackTrainProvider(new TcddTrainProvider(tcddConfig), staticProvider)
-  : staticProvider;
+export const trainProvider: TrainProvider = new FallbackTrainProvider(
+  new TcddTrainProvider(readTcddConfigFromEnv()),
+  staticProvider,
+);
 
 export type {
   TrainOption,
