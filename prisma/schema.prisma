@@ -85,6 +85,11 @@ model CommuteCommitment {
   offWindowId    String   @unique
   outboundTrain  Json
   returnTrain    Json
+  /**
+   * PNR pasted back after buying on TCDD. Tickets are bought on ebilet, not here, so this is the
+   * only signal that a planned trip is actually ticketed. No passenger identity is stored.
+   */
+  bookingReference String?
   committedAt    DateTime @default(now())
 
   offWindow OffWindow @relation(fields: [offWindowId], references: [id])

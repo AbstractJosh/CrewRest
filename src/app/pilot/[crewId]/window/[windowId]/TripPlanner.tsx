@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { evaluateCommuteFeasibility } from "@/lib/trains/commuteFeasibility";
 import { formatDurationMinutes, formatTurkeyRange } from "@/lib/time/turkeyTime";
+import type { TrainDataSource, TrainFare } from "@/lib/trains/TrainProvider";
 
 export interface SerializedTrainOption {
   trainNumber: string;
@@ -11,6 +12,13 @@ export interface SerializedTrainOption {
   departureAt: string;
   arrivalAt: string;
   durationMinutes: number;
+  source: TrainDataSource;
+  providerTrainId?: string;
+  fares?: TrainFare[];
+  availableSeats?: number;
+  isSoldOut?: boolean;
+  /** Resolved on the server, where the booking-link template lives. */
+  bookingUrl: string;
 }
 
 function toDated(option: SerializedTrainOption) {
@@ -19,6 +27,84 @@ function toDated(option: SerializedTrainOption) {
     departureAt: new Date(option.departureAt),
     arrivalAt: new Date(option.arrivalAt),
   };
+}
+
+function cheapestFare(option: SerializedTrainOption): TrainFare | null {
+  if (!option.fares || option.fares.length === 0) return null;
+  return option.fares.reduce((cheapest, fare) =>
+    fare.priceMinor < cheapest.priceMinor ? fare : cheapest,
+  );
+}
+
+/** Exact to the kuruş — rounding a ₺450,50 fare to ₺451 misstates what the ticket costs. */
+function formatPrice(fare: TrainFare): string {
+  return new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency: fare.currency,
+  }).format(fare.priceMinor / 100);
+}
+
+/**
+ * One `<option>` label. Price and seats-left only appear when the provider supplied them, so the
+ * same component renders live data and curated estimates without branching on the source.
+ */
+function optionLabel(option: SerializedTrainOption): string {
+  const parts = [
+    formatTurkeyRange(new Date(option.departureAt), new Date(option.arrivalAt)),
+    `(${formatDurationMinutes(option.durationMinutes)})`,
+  ];
+
+  const fare = cheapestFare(option);
+  if (fare) parts.push(`· ${formatPrice(fare)}`);
+
+  if (option.availableSeats !== undefined && option.availableSeats <= 10) {
+    parts.push(`· ${option.availableSeats} seats left`);
+  }
+
+  return parts.join(" ");
+}
+
+function TrainSelect({
+  label,
+  options,
+  selectedIndex,
+  onSelect,
+}: {
+  label: React.ReactNode;
+  options: SerializedTrainOption[];
+  selectedIndex: number;
+  onSelect: (index: number) => void;
+}) {
+  const selected = options[selectedIndex];
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+      <label className="flex flex-col gap-2">
+        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{label}</span>
+        <select
+          value={selectedIndex}
+          onChange={(e) => onSelect(Number(e.target.value))}
+          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+        >
+          {options.map((option, index) => (
+            <option key={option.trainNumber + option.departureAt} value={index}>
+              {optionLabel(option)}
+            </option>
+          ))}
+        </select>
+      </label>
+      {selected && (
+        <a
+          href={selected.bookingUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="self-start text-sm font-medium text-zinc-600 underline underline-offset-4 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-50"
+        >
+          Buy on TCDD ↗
+        </a>
+      )}
+    </div>
+  );
 }
 
 export default function TripPlanner({
@@ -31,6 +117,7 @@ export default function TripPlanner({
   initialOutboundIndex,
   initialReturnIndex,
   alreadyCommitted,
+  initialBookingReference,
 }: {
   windowId: string;
   /** Earliest the pilot can be at the station — duty release plus their transfer time. */
@@ -43,9 +130,12 @@ export default function TripPlanner({
   initialOutboundIndex: number;
   initialReturnIndex: number;
   alreadyCommitted: boolean;
+  /** PNR previously pasted back after buying on TCDD, if any. */
+  initialBookingReference: string;
 }) {
   const [outboundIndex, setOutboundIndex] = useState(initialOutboundIndex);
   const [returnIndex, setReturnIndex] = useState(initialReturnIndex);
+  const [bookingReference, setBookingReference] = useState(initialBookingReference);
   const [isSaving, setIsSaving] = useState(false);
   const [committed, setCommitted] = useState(alreadyCommitted);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +156,12 @@ export default function TripPlanner({
     return evaluateCommuteFeasibility(travelWindow, toDated(outbound), toDated(returnTrain));
   }, [travelWindow, outbound, returnTrain]);
 
+  // Estimates and live data can mix: the live provider may answer for one direction and fail
+  // over to the curated timetable for the other. Say so only when something shown is estimated.
+  const hasEstimates = [...outboundOptions, ...returnOptions].some(
+    (option) => option.source === "estimate",
+  );
+
   async function handleCommit() {
     if (!outbound || !returnTrain) return;
     setIsSaving(true);
@@ -74,7 +170,11 @@ export default function TripPlanner({
       const response = await fetch(`/api/off-windows/${windowId}/commit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ outbound, return: returnTrain }),
+        body: JSON.stringify({
+          outbound,
+          return: returnTrain,
+          bookingReference: bookingReference.trim() || null,
+        }),
       });
       if (!response.ok) {
         const data = await response.json();
@@ -99,49 +199,29 @@ export default function TripPlanner({
   return (
     <div className="mt-6 flex flex-col gap-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <label className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-          <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-            Outbound to {homeCity}{" "}
-            <span className="font-normal text-zinc-500 dark:text-zinc-400">(local time)</span>
-          </span>
-          <select
-            value={outboundIndex}
-            onChange={(e) => setOutboundIndex(Number(e.target.value))}
-            className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-          >
-            {outboundOptions.map((option, index) => (
-              <option key={option.trainNumber + option.departureAt} value={index}>
-                {formatTurkeyRange(
-                  new Date(option.departureAt),
-                  new Date(option.arrivalAt),
-                )}{" "}
-                ({formatDurationMinutes(option.durationMinutes)})
-              </option>
-            ))}
-          </select>
-        </label>
+        <TrainSelect
+          label={
+            <>
+              Outbound to {homeCity}{" "}
+              <span className="font-normal text-zinc-500 dark:text-zinc-400">(local time)</span>
+            </>
+          }
+          options={outboundOptions}
+          selectedIndex={outboundIndex}
+          onSelect={setOutboundIndex}
+        />
 
-        <label className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-          <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-            Return to Istanbul{" "}
-            <span className="font-normal text-zinc-500 dark:text-zinc-400">(local time)</span>
-          </span>
-          <select
-            value={returnIndex}
-            onChange={(e) => setReturnIndex(Number(e.target.value))}
-            className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-          >
-            {returnOptions.map((option, index) => (
-              <option key={option.trainNumber + option.departureAt} value={index}>
-                {formatTurkeyRange(
-                  new Date(option.departureAt),
-                  new Date(option.arrivalAt),
-                )}{" "}
-                ({formatDurationMinutes(option.durationMinutes)})
-              </option>
-            ))}
-          </select>
-        </label>
+        <TrainSelect
+          label={
+            <>
+              Return to Istanbul{" "}
+              <span className="font-normal text-zinc-500 dark:text-zinc-400">(local time)</span>
+            </>
+          }
+          options={returnOptions}
+          selectedIndex={returnIndex}
+          onSelect={setReturnIndex}
+        />
       </div>
 
       {feasibility && (
@@ -173,6 +253,21 @@ export default function TripPlanner({
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
+      <label className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+          PNR / booking reference{" "}
+          <span className="font-normal text-zinc-500 dark:text-zinc-400">
+            (optional — paste it back once you&apos;ve bought on TCDD)
+          </span>
+        </span>
+        <input
+          value={bookingReference}
+          onChange={(e) => setBookingReference(e.target.value)}
+          placeholder="e.g. 1234567890"
+          className="max-w-xs rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+        />
+      </label>
+
       <button
         onClick={handleCommit}
         disabled={isSaving || !feasibility?.isFeasible}
@@ -186,13 +281,16 @@ export default function TripPlanner({
       </button>
       {committed && (
         <p className="text-sm text-emerald-700 dark:text-emerald-400">
-          You&apos;re committed to this trip.
+          {bookingReference.trim()
+            ? `Ticketed — booking reference ${bookingReference.trim()}.`
+            : "You're committed to this trip — buy the tickets on TCDD to lock it in."}
         </p>
       )}
 
       <p className="text-xs text-zinc-500 dark:text-zinc-500">
-        Train times are approximate planning estimates, not a live feed —
-        confirm exact times and book on ebilet.tcddtasimacilik.gov.tr.
+        {hasEstimates
+          ? "Some times shown are approximate planning estimates, not a live feed — confirm exact times and book on ebilet.tcddtasimacilik.gov.tr."
+          : "Live TCDD times and fares. Seat availability can change between loading this page and paying."}
       </p>
     </div>
   );

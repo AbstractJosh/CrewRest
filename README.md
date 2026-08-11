@@ -62,13 +62,36 @@ won't generalise to other airlines' formats without changes.
 
 ## Train data
 
-TCDD has no usable public timetable API — the legacy endpoint is dead and the current one sits
-behind bot protection that rejects server-to-server requests. So `src/lib/trains/data/` holds a
-curated, approximate YHT timetable behind a `TrainProvider` interface, ready to swap for a live
-source. **Treat the times as planning estimates and confirm on
+TCDD publishes no official timetable API. CrewRest reads trains through a `TrainProvider`
+interface with two implementations:
+
+- **`TcddTrainProvider`** — live times, fares and seat availability. Used when
+  `TCDD_API_BASE_URL` is set. Results are cached for ten minutes, requests are batched three at
+  a time, and sold-out trains are dropped from the planner.
+- **`StaticTrainProvider`** — the curated, approximate YHT timetable in
+  `src/lib/trains/data/`. Used when no API is configured, **and** whenever a live request fails.
+  An unofficial endpoint that rate-limits or disappears degrades the planner to estimates rather
+  than breaking it.
+
+Every train carries a `source` of `live` or `estimate`, and the planner says which it's showing.
+Where you see estimates, **confirm on
 [ebilet.tcddtasimacilik.gov.tr](https://ebilet.tcddtasimacilik.gov.tr) before booking.**
+
+See `.env.example` for the settings, including the station-id mapping override.
+
+## Buying tickets
+
+CrewRest doesn't sell tickets and can't. TCDD settles card payments through a bank 3-D Secure
+redirect where the cardholder authenticates on the bank's own page, so the purchase necessarily
+finishes on TCDD's site. What the planner does instead is hand off: each chosen train gets a
+**Buy on TCDD** link, and once you've bought, you can paste the PNR back so a committed window
+shows as ticketed rather than merely planned. No passenger identity is stored.
+
+ebilet is a single-page app with no documented deep-link format, so the link goes to the plain
+search page until you set `TCDD_BOOKING_URL_TEMPLATE` (see `.env.example`) to the URL format a
+real search produces.
 
 ## Status
 
-Personal project. Phases 1 and 2 of `crew-travel-planner-spec.md` are built. Not affiliated
+Personal project. Phases 1, 2 and 2b of `crew-travel-planner-spec.md` are built. Not affiliated
 with or endorsed by Turkish Airlines or TCDD.

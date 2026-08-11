@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { trainProvider, searchTrainsInWindow, type TrainOption } from "@/lib/trains";
+import {
+  trainProvider,
+  searchTrainsInWindow,
+  buildBookingUrl,
+  type TrainOption,
+} from "@/lib/trains";
 import { computeTravelWindow } from "@/lib/schedule/travelWindow";
 import {
   chooseOutbound,
@@ -19,11 +24,40 @@ import {
 import HomeCityForm from "./HomeCityForm";
 import TripPlanner, { type SerializedTrainOption } from "./TripPlanner";
 
+/**
+ * How many days of timetable to pull for one window. Against a live provider each day is an HTTP
+ * request, and a gap long enough to be worth commuting home for is measured in days, not weeks —
+ * so the static provider's month-wide default buys nothing here.
+ */
+const MAX_DAYS_TO_SEARCH = 8;
+
+/**
+ * Finds a committed train among the options currently offered.
+ *
+ * Prefers the provider's own id, which survives a timetable edit. A commitment made against the
+ * curated timetable has no such id — and its train number is synthesized from list position, so
+ * it moves if the data changes — hence the departure-time fallback.
+ */
+function findCommittedIndex(
+  options: SerializedTrainOption[],
+  committed: SerializedTrainOption,
+): number {
+  if (committed.providerTrainId) {
+    const byId = options.findIndex((o) => o.providerTrainId === committed.providerTrainId);
+    if (byId >= 0) return byId;
+  }
+  return options.findIndex(
+    (o) =>
+      o.trainNumber === committed.trainNumber && o.departureAt === committed.departureAt,
+  );
+}
+
 function serialize(option: TrainOption): SerializedTrainOption {
   return {
     ...option,
     departureAt: option.departureAt.toISOString(),
     arrivalAt: option.arrivalAt.toISOString(),
+    bookingUrl: buildBookingUrl(option),
   };
 }
 
@@ -68,6 +102,7 @@ export default async function OffWindowPage({
         pilot.homeStationCode,
         travel.startAt,
         travel.endAt,
+        MAX_DAYS_TO_SEARCH,
       ),
       searchTrainsInWindow(
         trainProvider,
@@ -75,16 +110,21 @@ export default async function OffWindowPage({
         "IST",
         travel.startAt,
         travel.endAt,
+        MAX_DAYS_TO_SEARCH,
       ),
     ]);
     // A train in the timetable isn't necessarily one you can get to: the feeder metro bounds
     // when you can board in Istanbul, and the return has to land early enough to still reach
-    // the airport before report time.
-    outboundOptions = outboundAll.filter((t) => isBoardable(t.departureAt));
+    // the airport before report time. And a sold-out train is not a way home at all — when the
+    // provider reports availability, drop those before they can be chosen.
+    outboundOptions = outboundAll.filter(
+      (t) => isBoardable(t.departureAt) && t.isSoldOut !== true,
+    );
     returnOptions = returnAll.filter(
       (t) =>
         isAlightable(t.arrivalAt) &&
-        t.arrivalAt.getTime() <= travel.latestReturnArrivalAt.getTime(),
+        t.arrivalAt.getTime() <= travel.latestReturnArrivalAt.getTime() &&
+        t.isSoldOut !== true,
     );
   }
 
@@ -99,12 +139,8 @@ export default async function OffWindowPage({
   if (offWindow.commitment) {
     const outboundJson = offWindow.commitment.outboundTrain as unknown as SerializedTrainOption;
     const returnJson = offWindow.commitment.returnTrain as unknown as SerializedTrainOption;
-    const matchedOutbound = serializedOutbound.findIndex(
-      (o) => o.trainNumber === outboundJson.trainNumber && o.departureAt === outboundJson.departureAt,
-    );
-    const matchedReturn = serializedReturn.findIndex(
-      (r) => r.trainNumber === returnJson.trainNumber && r.departureAt === returnJson.departureAt,
-    );
+    const matchedOutbound = findCommittedIndex(serializedOutbound, outboundJson);
+    const matchedReturn = findCommittedIndex(serializedReturn, returnJson);
     if (matchedOutbound >= 0) initialOutboundIndex = matchedOutbound;
     if (matchedReturn >= 0) initialReturnIndex = matchedReturn;
   }
@@ -175,6 +211,7 @@ export default async function OffWindowPage({
           initialOutboundIndex={initialOutboundIndex}
           initialReturnIndex={initialReturnIndex}
           alreadyCommitted={Boolean(offWindow.commitment)}
+          initialBookingReference={offWindow.commitment?.bookingReference ?? ""}
         />
       )}
     </div>

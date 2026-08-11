@@ -4,6 +4,13 @@ import { TURKEY_UTC_OFFSET_MINUTES } from "@/lib/time/turkeyTime";
 /** Guards against a malformed window producing an unbounded number of provider calls. */
 const MAX_DAYS_SEARCHED = 31;
 
+/**
+ * How many days are queried at once. Against the static timetable the batching is invisible;
+ * against an unofficial live endpoint, thirty-one simultaneous requests is a good way to get
+ * rate-limited or blocked outright.
+ */
+const REQUEST_BATCH_SIZE = 3;
+
 const DAY_MS = 24 * 60 * 60_000;
 
 /** Midnight Turkey-local, as a UTC instant, for the day the given instant falls on. */
@@ -24,6 +31,10 @@ function turkeyMidnight(date: Date): Date {
  * routinely spans several days — and, now that windows start at duty release rather than at
  * the end of the mandatory rest period, often starts late at night with no usable departures
  * left that day. So query each Turkey-local date the window touches and keep what fits.
+ *
+ * `maxDays` caps that fan-out. It defaults to the full month a roster can produce, but a caller
+ * on a live provider should pass something smaller: a gap worth commuting home for never spans
+ * weeks, and each extra day is a real HTTP request.
  */
 export async function searchTrainsInWindow(
   provider: TrainProvider,
@@ -31,24 +42,31 @@ export async function searchTrainsInWindow(
   destinationCode: string,
   windowStart: Date,
   windowEnd: Date,
+  maxDays: number = MAX_DAYS_SEARCHED,
 ): Promise<TrainOption[]> {
   const firstDay = turkeyMidnight(windowStart);
   const lastDay = turkeyMidnight(windowEnd);
   const dayCount = Math.min(
     Math.round((lastDay.getTime() - firstDay.getTime()) / DAY_MS) + 1,
-    MAX_DAYS_SEARCHED,
+    Math.min(maxDays, MAX_DAYS_SEARCHED),
   );
   if (dayCount < 1) return [];
 
-  const perDay = await Promise.all(
-    Array.from({ length: dayCount }, (_, i) =>
-      provider.searchTrains(
-        originCode,
-        destinationCode,
-        new Date(firstDay.getTime() + i * DAY_MS),
+  const perDay: TrainOption[][] = [];
+  for (let start = 0; start < dayCount; start += REQUEST_BATCH_SIZE) {
+    const batch = await Promise.all(
+      Array.from(
+        { length: Math.min(REQUEST_BATCH_SIZE, dayCount - start) },
+        (_, offset) =>
+          provider.searchTrains(
+            originCode,
+            destinationCode,
+            new Date(firstDay.getTime() + (start + offset) * DAY_MS),
+          ),
       ),
-    ),
-  );
+    );
+    perDay.push(...batch);
+  }
 
   return perDay
     .flat()

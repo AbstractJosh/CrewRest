@@ -1,8 +1,21 @@
-import type { TrainOption, TrainProvider, TrainStation } from "@/lib/trains/TrainProvider";
+import type {
+  TrainOption,
+  TrainProvider,
+  TrainProviderCapabilities,
+  TrainStation,
+} from "@/lib/trains/TrainProvider";
 import { STATIONS, YHT_ROUTES } from "@/lib/trains/data/yhtRoutes";
 import { buildTurkeyDate } from "@/lib/time/turkeyTime";
 
 export class StaticTrainProvider implements TrainProvider {
+  /** A curated timetable knows nothing beyond approximate departure times. */
+  readonly capabilities: TrainProviderCapabilities = {
+    liveTimetable: false,
+    fares: false,
+    seatAvailability: false,
+    booking: false,
+  };
+
   listDestinationsFromIstanbul(): TrainStation[] {
     return YHT_ROUTES.filter((route) => route.originCode === "IST").map(
       (route) => STATIONS[route.destinationCode],
@@ -38,6 +51,7 @@ export class StaticTrainProvider implements TrainProvider {
         departureAt,
         arrivalAt,
         durationMinutes: route.durationMinutes,
+        source: "estimate",
       };
     });
   }

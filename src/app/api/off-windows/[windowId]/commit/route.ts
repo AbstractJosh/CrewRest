@@ -20,16 +20,24 @@ export async function POST(
     return NextResponse.json({ error: "Off-window not found." }, { status: 404 });
   }
 
+  // Absent and empty both mean "not ticketed yet"; anything else is stored as given.
+  const bookingReference =
+    typeof body.bookingReference === "string" && body.bookingReference.trim() !== ""
+      ? body.bookingReference.trim()
+      : null;
+
   const commitment = await prisma.commuteCommitment.upsert({
     where: { offWindowId: windowId },
     update: {
       outboundTrain: body.outbound,
       returnTrain: body.return,
+      bookingReference,
     },
     create: {
       offWindowId: windowId,
       outboundTrain: body.outbound,
       returnTrain: body.return,
+      bookingReference,
     },
   });
 

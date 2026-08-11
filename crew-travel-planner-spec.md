@@ -44,14 +44,24 @@ Parse roster → convert to local time → for every gap between blocks, output
 whether the crew can go home, and if so `home_arrival_time`,
 `next_departure_time`, and the rest duration.
 
-**Phase 2 — Train integration**
+**Phase 2 — Train integration** — built.
 - From `home_arrival_time`, find the earliest catchable train home.
 - Feeder metro only runs 06:00–24:00, which bounds reachable trains:
   earliest ~07:30, latest ~01:30 (next day, if past-midnight trains exist).
 - Don't want to wait more than 2 hours at the station — if the only option
   needs a longer wait, roll over to checking the next day instead.
-- Nice-to-have: show live seat/ticket availability per train — a train that
-  exists but is sold out doesn't count as a way home.
+- ~~Nice-to-have~~ done: live seat availability per train, and sold-out
+  trains are filtered out of the planner rather than shown.
+
+**Phase 2b — Live TCDD data and ticket handoff** — built.
+- Live timetable, fares and seat availability behind `TcddTrainProvider`,
+  with automatic fallback to the curated timetable when the (unofficial)
+  endpoint fails. See CLAUDE.md for what is verified vs. assumed.
+- Buying is a handoff to ebilet, not an in-app purchase: TCDD settles
+  payment through a bank 3-D Secure redirect that this app cannot drive.
+  A PNR pasted back marks a committed window as actually ticketed.
+- Deliberately out of scope: passenger profiles, TC kimlik/passport
+  storage, seat selection, card payment.
 
 **Phase 3 — Multi-destination / multi-user**
 - Generalize beyond "me": let a user pick a destination city and a
@@ -70,20 +80,30 @@ whether the crew can go home, and if so `home_arrival_time`,
   schedule stays put — needs to be defined with the user; not specified
   in the source notes.)
 
-## Open questions to resolve before/while building
+## Open questions
 
-1. Is the home-arrival buffer +1:00 or +1:30? (Notes are inconsistent
-   across passes — Phase 3's version, +1:30, looks like the latest/final
-   one, but confirm.)
-2. Train timetable source: real API/GTFS feed, or hardcoded/user-entered
-   schedule for v1?
-3. Exact "next day" fallback behavior when no same-day train fits the
-   2-hour-max-wait rule.
-4. What defines "home city" vs. a Phase 3 arbitrary destination — is it
-   just a config setting per user?
+Resolved:
+
+1. ~~Is the home-arrival buffer +1:00 or +1:30?~~ Neither is hardcoded: it's
+   `Pilot.airportTransferMinutes`, a per-pilot setting defaulting to 90
+   minutes, applied at both ends of the gap by `computeTravelWindow`.
+2. ~~Train timetable source: real API/GTFS feed, or hardcoded?~~ Both, behind
+   one interface — live TCDD when configured, curated timetable otherwise
+   and on failure.
+3. ~~Exact "next day" fallback when no same-day train fits the 2-hour-max-wait
+   rule.~~ Falls out of searching every day the window spans: the earliest
+   acceptable train simply lands on a later date. When none fits at all, the
+   earliest is still offered but flagged `isLongWait`.
+4. ~~What defines "home city"?~~ A per-pilot setting
+   (`homeCity`/`homeStationCode`), set from the planner on first use.
+
+Still open:
+
 5. Data source for the partner's schedule in Phase 4 — manual entry,
    shared file, or an integration with whatever "share roster" tool they
    already use?
+6. Phase 3's non-train modes (bus, plane, car) need a route/duration source
+   each; `TrainProvider` generalises to them but nothing is designed yet.
 
 ## Implementation notes
 

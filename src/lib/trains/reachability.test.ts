@@ -19,6 +19,7 @@ const train = (hour: number, minute: number): TrainOption => ({
   departureAt: at(hour, minute),
   arrivalAt: at(hour + 4, minute),
   durationMinutes: 270,
+  source: "estimate",
 });
 
 describe("isBoardable", () => {

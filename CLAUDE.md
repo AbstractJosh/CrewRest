@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-CrewRest reads a Turkish Airlines monthly crew roster PDF and works out which gaps between duties are genuinely long enough to commute home on the high-speed train (YHT), then lets the pilot commit to a specific outbound/return pair. Phases 1 and 2 of `crew-travel-planner-spec.md` are built; that spec is the source of truth for intended behaviour and for what Phases 3–4 would add.
+CrewRest reads a Turkish Airlines monthly crew roster PDF and works out which gaps between duties are genuinely long enough to commute home on the high-speed train (YHT), then lets the pilot commit to a specific outbound/return pair. Phases 1, 2 and 2b of `crew-travel-planner-spec.md` are built; that spec is the source of truth for intended behaviour and for what Phases 3–4 would add.
 
 Next.js 16 (App Router) · React 19 · TypeScript · Prisma 7 on SQLite · Tailwind 4 · `pdfjs-dist`.
 
@@ -55,7 +55,9 @@ PDF → extractPdfText → parseSchedulePdf → computeOffWindows → [persisted
 
 Every `Date` in the system is an absolute instant. Roster wall-clock times are turned into instants with `buildTurkeyDate()`, which hardcodes a fixed UTC+3 offset (Turkey has had no DST since 2016). Formatting for display goes through the `formatTurkey*` / `formatUtc*` helpers, which shift explicitly rather than relying on the server's timezone.
 
-Never use `getHours()`, `toLocaleString()`, or a bare `new Date(y, m, d)` in this codebase — the server's local timezone is not Istanbul and any of those will silently produce wrong roster times. Turkey-local "minutes of day" or "midnight" derivations are done by shifting into UTC first (`turkeyMinutesOfDay`, `turkeyMidnight`).
+Never use `getHours()`, `toLocaleString()`, a bare `new Date(y, m, d)`, or `new Date("2026-08-15T07:30:00")` on a zoneless string in this codebase — the server's local timezone is not Istanbul and any of those will silently produce wrong roster times. Turkey-local "minutes of day" or "midnight" derivations are done by shifting into UTC first (`turkeyMinutesOfDay`, `turkeyMidnight`); external zoneless timestamps are rebuilt component-wise (`parseTcddInstant`).
+
+This class of bug is invisible on a UTC+3 machine, where the wrong parse gives the right answer — and its output is a plausible-looking timetable, not an obvious error. So **any test asserting on parsed local times must pin a non-Turkish `TZ`** before its first import. `src/lib/trains/tcddResponse.test.ts` does this and carries a guard assertion proving the pin took effect; without that guard the whole suite passes vacuously.
 
 ### The three roster timestamps
 
@@ -86,7 +88,24 @@ There is **no sample roster in the repo** and there cannot be one (see Privacy).
 
 ### Trains
 
-`TrainProvider` (`src/lib/trains/TrainProvider.ts`) is the seam for timetable data. `StaticTrainProvider` reads a curated, approximate YHT timetable from `src/lib/trains/data/yhtRoutes.ts`; live TCDD integration was attempted and is blocked by bot protection on their current endpoint. Keep new timetable work behind this interface, and keep the "planning estimates, confirm on ebilet" framing in any user-facing copy.
+`TrainProvider` (`src/lib/trains/TrainProvider.ts`) is the seam for timetable data, with three implementations:
+
+- `TcddTrainProvider` — live times, fares and seat availability. Active only when `TCDD_API_BASE_URL` is set. Caches per route/date for 10 minutes on a `globalThis`-pinned Map (same reason as `src/lib/prisma.ts`) and batches day requests three at a time.
+- `StaticTrainProvider` — the curated, approximate YHT timetable in `src/lib/trains/data/yhtRoutes.ts`.
+- `FallbackTrainProvider` — runs the live one with the static one standing by.
+
+TCDD publishes no official API and the endpoint being integrated is unofficial, so **a failing live request is the expected steady state, not a bug**: it must degrade to estimates, never error the page. Every `TrainOption` carries `source: "live" | "estimate"`, each provider declares `capabilities`, and user-facing copy is driven by those rather than hardcoded — keep the "planning estimates, confirm on ebilet" framing for anything sourced `estimate`. New optional fields on `TrainOption` must stay optional so `StaticTrainProvider` keeps compiling and the UI degrades field by field.
+
+Two things in the live path are unverified guesses, isolated on purpose:
+
+- Response field names in `src/lib/trains/tcddResponse.ts`. The mapper accepts several plausible spellings of each and drops rows it can't read rather than throwing. Adjust there; the fixture tests will catch it.
+- The ebilet deep-link format (`TCDD_BOOKING_URL_TEMPLATE`, unset by default). ebilet is an SPA that serves only a shell to server-side fetches, so the params cannot be discovered from code — they have to be read off a real search in a browser. Unset, booking links go to the plain search page.
+
+### Buying tickets
+
+CrewRest cannot sell tickets. TCDD settles card payments through a bank 3-D Secure redirect where the cardholder authenticates on the bank's page, so purchase always finishes on TCDD's site. The app hands off — a prefilled ebilet link per train — and a PNR pasted back into `CommuteCommitment.bookingReference` marks a committed window as actually ticketed rather than merely planned.
+
+**Never store passenger identity** (TC kimlik, passport). It is out of scope by decision, not oversight; see Privacy.
 
 Reachability is separate from the timetable and encodes the feeder metro's hours: `isBoardable` (07:30–01:30, a band that wraps past midnight, hence an OR rather than a range test) and `isAlightable` (arrival at or after 06:00). The spec's "roll over to the next day" behaviour is achieved implicitly — `searchTrainsInWindow` queries every Turkey-local date the window touches, so the earliest acceptable train simply lands on a later date.
 
@@ -99,6 +118,8 @@ Prisma 7 runs through the `better-sqlite3` driver adapter (`src/lib/prisma.ts`),
 ## Privacy
 
 `/data` is gitignored on purpose. A real roster PDF contains the holder's passport number, medical record dates, a month of their movements, and the full names of every colleague they flew with. Never commit a roster, never paste roster contents into a commit message or issue, and never add a fixture built from a real one.
+
+`dev.db` and `.env` are gitignored for the same reason — the database holds the parsed roster, which is the same personal data in another shape. Don't attach or upload either when debugging.
 
 ## Other constraints
 
