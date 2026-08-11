@@ -6,16 +6,14 @@
  * TCDD's site — no provider capability changes that. What CrewRest can do is take the pilot there
  * with the trip already filled in.
  *
- * The catch: ebilet is a single-page app and publishes no documented deep-link format. Fetching
- * it server-side returns only the shell, so the parameters can't be discovered from here — they
- * have to be read off a real search in a browser. Rather than ship a guess that silently sends
- * the pilot to the wrong route, the default is the plain search page, and the parameterised form
- * is enabled by setting `TCDD_BOOKING_URL_TEMPLATE` once the format is confirmed:
+ * The deep-link format is undocumented but not undiscoverable: see `EBILET_DEFAULT_TEMPLATE`
+ * below for where it was read from. `TCDD_BOOKING_URL_TEMPLATE` overrides it, for if TCDD changes
+ * the format:
  *
  *   TCDD_BOOKING_URL_TEMPLATE="https://ebilet.tcddtasimacilik.gov.tr/?from={from}&to={to}&date={date}"
  *
- * Placeholders: `{from}` `{to}` (TCDD station ids, URL-encoded), `{date}` (YYYY-MM-DD),
- * `{time}` (HH:MM, Türkiye local).
+ * Placeholders: `{fromId}` `{toId}` (numeric TCDD station ids), `{from}` `{to}` (station names,
+ * URL-encoded), `{date}` (YYYY-MM-DD), `{time}` (HH:MM, Türkiye local).
  */
 
 import type { TrainOption } from "@/lib/trains/TrainProvider";
@@ -23,6 +21,21 @@ import { toTcddStation } from "@/lib/trains/data/tcddStations";
 import { TURKEY_UTC_OFFSET_MINUTES, formatTurkeyTime } from "@/lib/time/turkeyTime";
 
 export const EBILET_SEARCH_URL = "https://ebilet.tcddtasimacilik.gov.tr/";
+
+/**
+ * The trip prefilled on ebilet's own redirect route.
+ *
+ * These parameter names are not documented; they were read off the `SeferListRedirect` component
+ * in ebilet's lazily-loaded `4696.*.chunk.js`, which parses exactly six query variables and pushes
+ * the resulting search into the app's store. A scan of the initial bundle misses this file
+ * entirely, which is why the format was long assumed undiscoverable.
+ *
+ * `seyahatTuru=1` is one-way; `0` means round trip and additionally reads `donusTarih`.
+ */
+export const EBILET_DEFAULT_TEMPLATE =
+  "https://ebilet.tcddtasimacilik.gov.tr/sefer-listesi-yonlendirme" +
+  "?binisIstasyonId={fromId}&inisIstasyonId={toId}&gidisTarih={date}" +
+  "&yolcuSayisi=1&seyahatTuru=1";
 
 /** Türkiye-local "YYYY-MM-DD" — the date the pilot actually travels, not the UTC one. */
 function turkeyDateKey(date: Date): string {
@@ -39,7 +52,8 @@ function turkeyDateKey(date: Date): string {
  */
 export function buildBookingUrl(
   option: Pick<TrainOption, "originCode" | "destinationCode" | "departureAt">,
-  template: string | undefined = process.env.TCDD_BOOKING_URL_TEMPLATE,
+  template: string | undefined = process.env.TCDD_BOOKING_URL_TEMPLATE ||
+    EBILET_DEFAULT_TEMPLATE,
 ): string {
   if (!template) return EBILET_SEARCH_URL;
 
@@ -48,6 +62,8 @@ export function buildBookingUrl(
   if (!from || !to) return EBILET_SEARCH_URL;
 
   const replacements: Record<string, string> = {
+    "{fromId}": String(from.id),
+    "{toId}": String(to.id),
     "{from}": encodeURIComponent(from.name),
     "{to}": encodeURIComponent(to.name),
     "{date}": turkeyDateKey(option.departureAt),

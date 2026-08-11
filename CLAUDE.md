@@ -90,7 +90,7 @@ There is **no sample roster in the repo** and there cannot be one (see Privacy).
 
 `TrainProvider` (`src/lib/trains/TrainProvider.ts`) is the seam for timetable data, with three implementations:
 
-- `TcddTrainProvider` — live times, fares and seat availability. Active only when `TCDD_API_BASE_URL` is set. Caches per route/date for 10 minutes on a `globalThis`-pinned Map (same reason as `src/lib/prisma.ts`) and batches day requests three at a time.
+- `TcddTrainProvider` — live times, fares and seat availability. On by default; `TCDD_API_BASE_URL` only overrides the built-in endpoint (for a proxy or a mock). Caches per route/date for 10 minutes on a `globalThis`-pinned Map (same reason as `src/lib/prisma.ts`) and batches day requests three at a time.
 - `StaticTrainProvider` — the curated, approximate YHT timetable in `src/lib/trains/data/yhtRoutes.ts`.
 - `FallbackTrainProvider` — runs the live one with the static one standing by.
 
@@ -99,7 +99,7 @@ TCDD publishes no official API and the endpoint being integrated is unofficial, 
 Two things in the live path are unverified guesses, isolated on purpose:
 
 - Response field names in `src/lib/trains/tcddResponse.ts`. The mapper accepts several plausible spellings of each and drops rows it can't read rather than throwing. Adjust there; the fixture tests will catch it.
-- The ebilet deep-link format (`TCDD_BOOKING_URL_TEMPLATE`, unset by default). ebilet is an SPA that serves only a shell to server-side fetches, so the params cannot be discovered from code — they have to be read off a real search in a browser. Unset, booking links go to the plain search page.
+- The ebilet deep-link format. ebilet is an SPA that serves only a shell to server-side fetches, but the params weren't undiscoverable, only lazily loaded: they're read by the `SeferListRedirect` component in ebilet's lazily-loaded `4696.*.chunk.js`, which parses exactly six query variables (`binisIstasyonId`, `inisIstasyonId`, `gidisTarih`, `donusTarih`, `seyahatTuru`, `yolcuSayisi`). `EBILET_DEFAULT_TEMPLATE` in `src/lib/trains/booking.ts` fills those in by default; `TCDD_BOOKING_URL_TEMPLATE` overrides it if TCDD changes the format.
 
 ### Buying tickets
 
@@ -120,6 +120,10 @@ Prisma 7 runs through the `better-sqlite3` driver adapter (`src/lib/prisma.ts`),
 `/data` is gitignored on purpose. A real roster PDF contains the holder's passport number, medical record dates, a month of their movements, and the full names of every colleague they flew with. Never commit a roster, never paste roster contents into a commit message or issue, and never add a fixture built from a real one.
 
 `dev.db` and `.env` are gitignored for the same reason — the database holds the parsed roster, which is the same personal data in another shape. Don't attach or upload either when debugging.
+
+Timetable responses are the one exception: `src/lib/trains/__fixtures__/` holds real TCDD
+availability payloads, which contain public departure data and no passenger information. See the
+README there.
 
 ## Other constraints
 
