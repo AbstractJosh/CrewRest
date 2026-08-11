@@ -1,0 +1,650 @@
+{
+  "trainLegs": [
+    {
+      "trainAvailabilities": [
+        {
+          "trains": [
+            {
+              "id": 186185,
+              "number": "81001",
+              "name": "81001 ANKARA - İSTANBUL",
+              "commercialName": "YHT ANKARA - İSTANBUL",
+              "type": "YHT",
+              "line": null,
+              "reversed": false,
+              "scheduleId": 350,
+              "departureStationId": 93,
+              "arrivalStationId": 1325,
+              "minPrice": {
+                "type": null,
+                "priceAmount": 600,
+                "priceCurrency": "TRY",
+                "originalAmount": 0,
+                "originalCurrency": null,
+                "exchangeRate": 0
+              },
+              "reservationLockTime": 1440,
+              "reservable": true,
+              "segments": [
+                {
+                  "id": 2883249,
+                  "departureTime": 1786767480000,
+                  "arrivalTime": 1786776000000,
+                  "stops": true,
+                  "duration": 142,
+                  "stopDuration": 5,
+                  "distance": 267.725,
+                  "segment": {
+                    "id": 426757,
+                    "name": "ESKİŞEHİR-İSTANBUL(PENDİK)",
+                    "departureStation": {
+                      "id": 93,
+                      "name": "ESKİŞEHİR"
+                    },
+                    "arrivalStation": {
+                      "id": 48,
+                      "name": "İSTANBUL(PENDİK)"
+                    },
+                    "lineId": 0,
+                    "lineOrder": 0
+                  }
+                },
+                {
+                  "id": 2883250,
+                  "departureTime": 1786776120000,
+                  "arrivalTime": 1786777620000,
+                  "stops": true,
+                  "duration": 25,
+                  "stopDuration": 2,
+                  "distance": 22.535,
+                  "segment": {
+                    "id": 427350,
+                    "name": "İSTANBUL(PENDİK)-İSTANBUL(SÖĞÜTLÜÇEŞME)",
+                    "departureStation": {
+                      "id": 48,
+                      "name": "İSTANBUL(PENDİK)"
+                    },
+                    "arrivalStation": {
+                      "id": 1325,
+                      "name": "İSTANBUL(SÖĞÜTLÜÇEŞME)"
+                    },
+                    "lineId": 0,
+                    "lineOrder": 0
+                  }
+                }
+              ],
+              "totalDistance": 290.26000000000005,
+              "onSale": true,
+              "availableFareInfo": [
+                {
+                  "fareFamily": {
+                    "id": 1,
+                    "name": "STANDART"
+                  },
+                  "cabinClasses": [
+                    {
+                      "cabinClass": {
+                        "id": 1,
+                        "code": "C",
+                        "name": "BUSİNESS",
+                        "additionalServices": null,
+                        "bookingClassModels": null,
+                        "showAvailabilityOnQuery": false
+                      },
+                      "availabilityCount": 0,
+                      "minPrice": null,
+                      "minPriceCurrency": null,
+                      "bookingClassAvailabilities": [
+                        {
+                          "bookingClass": {
+                            "id": 4,
+                            "code": "E",
+                            "name": "BUSİNESS STANDART",
+                            "cabinClass": {
+                              "id": 1,
+                              "code": null,
+                              "name": null,
+                              "additionalServices": null,
+                              "bookingClassModels": null,
+                              "showAvailabilityOnQuery": false
+                            },
+                            "fareFamily": {
+                              "id": 1,
+                              "name": "STANDART"
+                            }
+                          },
+                          "price": 900,
+                          "currency": "TRY",
+                          "availability": 0
+                        }
+                      ]
+                    },
+                    {
+                      "cabinClass": {
+                        "id": 2,
+                        "code": "Y1",
+                        "name": "EKONOMİ",
+                        "additionalServices": null,
+                        "bookingClassModels": null,
+                        "showAvailabilityOnQuery": false
+                      },
+                      "availabilityCount": 0,
+                      "minPrice": null,
+                      "minPriceCurrency": null,
+                      "bookingClassAvailabilities": [
+                        {
+                          "bookingClass": {
+                            "id": 1,
+                            "code": "B",
+                            "name": "EKONOMİ STANDART",
+                            "cabinClass": {
+                              "id": 2,
+                              "code": null,
+                              "name": null,
+                              "additionalServices": null,
+                              "bookingClassModels": null,
+                              "showAvailabilityOnQuery": false
+                            },
+                            "fareFamily": {
+                              "id": 1,
+                              "name": "STANDART"
+                            }
+                          },
+                          "price": 600,
+                          "currency": "TRY",
+                          "availability": 0
+                        }
+                      ]
+                    },
+                    {
+                      "cabinClass": {
+                        "id": 12,
+                        "code": "DSB",
+                        "name": "TEKERLEKLİ SANDALYE",
+                        "additionalServices": null,
+                        "bookingClassModels": null,
+                        "showAvailabilityOnQuery": true
+                      },
+                      "availabilityCount": 2,
+                      "minPrice": 600,
+                      "minPriceCurrency": "TRY",
+                      "bookingClassAvailabilities": [
+                        {
+                          "bookingClass": {
+                            "id": 23,
+                            "code": "X",
+                            "name": "ENGELLİ STANDART",
+                            "cabinClass": {
+                              "id": 12,
+                              "code": null,
+                              "name": null,
+                              "additionalServices": null,
+                              "bookingClassModels": null,
+                              "showAvailabilityOnQuery": false
+                            },
+                            "fareFamily": {
+                              "id": 1,
+                              "name": "STANDART"
+                            }
+                          },
+                          "price": 600,
+                          "currency": "TRY",
+                          "availability": 2
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "cabinClassAvailabilities": [
+                {
+                  "cabinClass": {
+                    "id": 12,
+                    "code": "DSB",
+                    "name": "TEKERLEKLİ SANDALYE",
+                    "additionalServices": null,
+                    "bookingClassModels": null,
+                    "showAvailabilityOnQuery": true
+                  },
+                  "availabilityCount": 2
+                }
+              ],
+              "trainDate": 1786752000000,
+              "trainNumber": "81001-15082026",
+              "skipsDay": false
+            }
+          ],
+          "totalTripTime": 10140000,
+          "minPrice": 600,
+          "connection": false,
+          "dayChanged": false
+        },
+        {
+          "trains": [
+            {
+              "id": 179443,
+              "number": "22001",
+              "name": "22001 ANKARA EKSPRESİ",
+              "commercialName": "ANKARA EKSPRESİ",
+              "type": "AH",
+              "line": null,
+              "reversed": false,
+              "scheduleId": 391,
+              "departureStationId": 93,
+              "arrivalStationId": 1325,
+              "minPrice": {
+                "type": null,
+                "priceAmount": 500,
+                "priceCurrency": "TRY",
+                "originalAmount": 0,
+                "originalCurrency": null,
+                "exchangeRate": 0
+              },
+              "reservationLockTime": 1440,
+              "reservable": true,
+              "segments": [
+                {
+                  "id": 2721006,
+                  "departureTime": 1786832880000,
+                  "arrivalTime": 1786835100000,
+                  "stops": true,
+                  "duration": 37,
+                  "stopDuration": 10,
+                  "distance": 46.078,
+                  "segment": {
+                    "id": 444971,
+                    "name": "ESKİŞEHİR-BOZÜYÜK",
+                    "departureStation": {
+                      "id": 93,
+                      "name": "ESKİŞEHİR"
+                    },
+                    "arrivalStation": {
+                      "id": 13,
+                      "name": "BOZÜYÜK"
+                    },
+                    "lineId": 0,
+                    "lineOrder": 0
+                  }
+                },
+                {
+                  "id": 2721007,
+                  "departureTime": 1786835220000,
+                  "arrivalTime": 1786836000000,
+                  "stops": true,
+                  "duration": 13,
+                  "stopDuration": 2,
+                  "distance": 14.646,
+                  "segment": {
+                    "id": 465261,
+                    "name": "BOZÜYÜK-KARAKÖY",
+                    "departureStation": {
+                      "id": 13,
+                      "name": "BOZÜYÜK"
+                    },
+                    "arrivalStation": {
+                      "id": 50,
+                      "name": "KARAKÖY"
+                    },
+                    "lineId": 0,
+                    "lineOrder": 0
+                  }
+                },
+                {
+                  "id": 2721008,
+                  "departureTime": 1786836780000,
+                  "arrivalTime": 1786837380000,
+                  "stops": true,
+                  "duration": 10,
+                  "stopDuration": 13,
+                  "distance": 8.935,
+                  "segment": {
+                    "id": 465263,
+                    "name": "KARAKÖY-YAYLA",
+                    "departureStation": {
+                      "id": 50,
+                      "name": "KARAKÖY"
+                    },
+                    "arrivalStation": {
+                      "id": 60,
+                      "name": "YAYLA"
+                    },
+                    "lineId": 0,
+                    "lineOrder": 0
+                  }
+                },
+                {
+                  "id": 2721009,
+                  "departureTime": 1786837500000,
+                  "arrivalTime": 1786838040000,
+                  "stops": true,
+                  "duration": 9,
+                  "stopDuration": 2,
+                  "distance": 7.70999999999998,
+                  "segment": {
+                    "id": 465273,
+                    "name": "YAYLA-BİLECİK",
+                    "departureStation": {
+                      "id": 60,
+                      "name": "YAYLA"
+                    },
+                    "arrivalStation": {
+                      "id": 9,
+                      "name": "BİLECİK"
+                    },
+                    "lineId": 0,
+                    "lineOrder": 0
+                  }
+                },
+                {
+                  "id": 2721010,
+                  "departureTime": 1786838100000,
+                  "arrivalTime": 1786843440000,
+                  "stops": true,
+                  "duration": -1351,
+                  "stopDuration": 1,
+                  "distance": 100.22,
+                  "segment": {
+                    "id": 444990,
+                    "name": "BİLECİK-ARİFİYE",
+                    "departureStation": {
+                      "id": 9,
+                      "name": "BİLECİK"
+                    },
+                    "arrivalStation": {
+                      "id": 5,
+                      "name": "ARİFİYE"
+                    },
+                    "lineId": 0,
+                    "lineOrder": 0
+                  }
+                },
+                {
+                  "id": 2721011,
+                  "departureTime": 1786843620000,
+                  "arrivalTime": 1786845060000,
+                  "stops": true,
+                  "duration": 24,
+                  "stopDuration": 3,
+                  "distance": 42.203,
+                  "segment": {
+                    "id": 444998,
+                    "name": "ARİFİYE-İZMİT YHT",
+                    "departureStation": {
+                      "id": 5,
+                      "name": "ARİFİYE"
+                    },
+                    "arrivalStation": {
+                      "id": 1135,
+                      "name": "İZMİT YHT"
+                    },
+                    "lineId": 0,
+                    "lineOrder": 0
+                  }
+                },
+                {
+                  "id": 2721012,
+                  "departureTime": 1786845180000,
+                  "arrivalTime": 1786847040000,
+                  "stops": true,
+                  "duration": 31,
+                  "stopDuration": 2,
+                  "distance": 46.463,
+                  "segment": {
+                    "id": 445005,
+                    "name": "İZMİT YHT-GEBZE",
+                    "departureStation": {
+                      "id": 1135,
+                      "name": "İZMİT YHT"
+                    },
+                    "arrivalStation": {
+                      "id": 20,
+                      "name": "GEBZE"
+                    },
+                    "lineId": 0,
+                    "lineOrder": 0
+                  }
+                },
+                {
+                  "id": 2721013,
+                  "departureTime": 1786847460000,
+                  "arrivalTime": 1786848600000,
+                  "stops": true,
+                  "duration": 19,
+                  "stopDuration": 7,
+                  "distance": 19.282,
+                  "segment": {
+                    "id": 445011,
+                    "name": "GEBZE-İSTANBUL(PENDİK)",
+                    "departureStation": {
+                      "id": 20,
+                      "name": "GEBZE"
+                    },
+                    "arrivalStation": {
+                      "id": 48,
+                      "name": "İSTANBUL(PENDİK)"
+                    },
+                    "lineId": 0,
+                    "lineOrder": 0
+                  }
+                },
+                {
+                  "id": 2721014,
+                  "departureTime": 1786848720000,
+                  "arrivalTime": 1786850100000,
+                  "stops": true,
+                  "duration": 23,
+                  "stopDuration": 2,
+                  "distance": 15.4699999999999,
+                  "segment": {
+                    "id": 445016,
+                    "name": "İSTANBUL(PENDİK)-İSTANBUL(BOSTANCI)",
+                    "departureStation": {
+                      "id": 48,
+                      "name": "İSTANBUL(PENDİK)"
+                    },
+                    "arrivalStation": {
+                      "id": 1323,
+                      "name": "İSTANBUL(BOSTANCI)"
+                    },
+                    "lineId": 0,
+                    "lineOrder": 0
+                  }
+                },
+                {
+                  "id": 2721015,
+                  "departureTime": 1786850220000,
+                  "arrivalTime": 1786850760000,
+                  "stops": true,
+                  "duration": 9,
+                  "stopDuration": 2,
+                  "distance": 7.06500000000005,
+                  "segment": {
+                    "id": 445020,
+                    "name": "İSTANBUL(BOSTANCI)-İSTANBUL(SÖĞÜTLÜÇEŞME)",
+                    "departureStation": {
+                      "id": 1323,
+                      "name": "İSTANBUL(BOSTANCI)"
+                    },
+                    "arrivalStation": {
+                      "id": 1325,
+                      "name": "İSTANBUL(SÖĞÜTLÜÇEŞME)"
+                    },
+                    "lineId": 0,
+                    "lineOrder": 0
+                  }
+                }
+              ],
+              "totalDistance": 308.07199999999995,
+              "onSale": true,
+              "availableFareInfo": [
+                {
+                  "fareFamily": {
+                    "id": 1,
+                    "name": "STANDART"
+                  },
+                  "cabinClasses": [
+                    {
+                      "cabinClass": {
+                        "id": 2,
+                        "code": "Y1",
+                        "name": "EKONOMİ",
+                        "additionalServices": null,
+                        "bookingClassModels": null,
+                        "showAvailabilityOnQuery": false
+                      },
+                      "availabilityCount": 153,
+                      "minPrice": 500,
+                      "minPriceCurrency": "TRY",
+                      "bookingClassAvailabilities": [
+                        {
+                          "bookingClass": {
+                            "id": 1,
+                            "code": "B",
+                            "name": "EKONOMİ STANDART",
+                            "cabinClass": {
+                              "id": 2,
+                              "code": null,
+                              "name": null,
+                              "additionalServices": null,
+                              "bookingClassModels": null,
+                              "showAvailabilityOnQuery": false
+                            },
+                            "fareFamily": {
+                              "id": 1,
+                              "name": "STANDART"
+                            }
+                          },
+                          "price": 500,
+                          "currency": "TRY",
+                          "availability": 153
+                        }
+                      ]
+                    },
+                    {
+                      "cabinClass": {
+                        "id": 3,
+                        "code": "B",
+                        "name": "YATAKLI",
+                        "additionalServices": [
+                          {
+                            "id": 2,
+                            "additionalServiceTypeId": 2,
+                            "name": "YATAK",
+                            "description": "YATAK",
+                            "code": "YTK",
+                            "active": true,
+                            "freeForPermi": false,
+                            "actAsGroup": false,
+                            "basePrice": [
+                              {
+                                "id": 84,
+                                "additionalServiceId": 2,
+                                "type": "FARE",
+                                "priceAmount": 16000,
+                                "priceCurrency": "TRY",
+                                "startDate": "2024-07-13",
+                                "endDate": "2026-12-31"
+                              }
+                            ],
+                            "pricingPeriods": null
+                          }
+                        ],
+                        "bookingClassModels": null,
+                        "showAvailabilityOnQuery": false
+                      },
+                      "availabilityCount": 8,
+                      "minPrice": 2510,
+                      "minPriceCurrency": "TRY",
+                      "bookingClassAvailabilities": [
+                        {
+                          "bookingClass": {
+                            "id": 7,
+                            "code": "G",
+                            "name": "YATAKLI STANDART",
+                            "cabinClass": {
+                              "id": 3,
+                              "code": null,
+                              "name": null,
+                              "additionalServices": null,
+                              "bookingClassModels": null,
+                              "showAvailabilityOnQuery": false
+                            },
+                            "fareFamily": {
+                              "id": 1,
+                              "name": "STANDART"
+                            }
+                          },
+                          "price": 2510,
+                          "currency": "TRY",
+                          "availability": 8
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "cabinClassAvailabilities": [
+                {
+                  "cabinClass": {
+                    "id": 2,
+                    "code": "Y1",
+                    "name": "EKONOMİ",
+                    "additionalServices": null,
+                    "bookingClassModels": null,
+                    "showAvailabilityOnQuery": false
+                  },
+                  "availabilityCount": 153
+                },
+                {
+                  "cabinClass": {
+                    "id": 3,
+                    "code": "B",
+                    "name": "YATAKLI",
+                    "additionalServices": [
+                      {
+                        "id": 2,
+                        "additionalServiceTypeId": 2,
+                        "name": "YATAK",
+                        "description": "YATAK",
+                        "code": "YTK",
+                        "active": true,
+                        "freeForPermi": false,
+                        "actAsGroup": false,
+                        "basePrice": [
+                          {
+                            "id": 84,
+                            "additionalServiceId": 2,
+                            "type": "FARE",
+                            "priceAmount": 16000,
+                            "priceCurrency": "TRY",
+                            "startDate": "2024-07-13",
+                            "endDate": "2026-12-31"
+                          }
+                        ],
+                        "pricingPeriods": null
+                      }
+                    ],
+                    "bookingClassModels": null,
+                    "showAvailabilityOnQuery": false
+                  },
+                  "availabilityCount": 8
+                }
+              ],
+              "trainDate": 1786752000000,
+              "trainNumber": "22001-15082026",
+              "skipsDay": true
+            }
+          ],
+          "totalTripTime": 17880000,
+          "minPrice": 500,
+          "connection": false,
+          "dayChanged": false
+        }
+      ],
+      "resultCount": 2
+    }
+  ],
+  "legCount": 1,
+  "roundTripDiscount": 0,
+  "maxRegionalTrainsRoundTripDays": 2147483647
+}
