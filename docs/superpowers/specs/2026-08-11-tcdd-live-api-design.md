@@ -89,10 +89,22 @@ On the probed day, 14 of 20 trains had availability only in `DSB` — wheelchair
 `availableSeats > 0` would plan a commute onto a train the pilot cannot board.
 
 ```ts
-const BOOKABLE_CABIN_CODES = ["Y1", "C", "L"]; // economy, business, loca
+/**
+ * Cabin classes a pilot cannot book. Everything else counts.
+ *
+ * A denylist rather than an allowlist: TCDD returns five cabin classes today (Y1 EKONOMİ,
+ * C BUSİNESS, L LOCA, B YATAKLI, DSB TEKERLEKLİ SANDALYE), and an allowlist would silently
+ * drop any class added later — including B, the sleeper berth on the overnight service, which
+ * is one of the more attractive commutes on offer.
+ */
+const EXCLUDED_CABIN_CODES = ["DSB"]; // wheelchair spaces
 ```
 
-`availableSeats` sums only those. `isSoldOut` is true when they are all zero, whatever DSB says.
+`availableSeats` sums everything else. `isSoldOut` is true when they are all zero, whatever DSB says.
+
+**Cabin codes and booking codes are different namespaces and they collide.** Cabin class `B` is
+YATAKLI (sleeper); booking class `B` is EKONOMİ STANDART. Read the code off
+`cabinClasses[].cabinClass.code`, never off `bookingClassAvailabilities[].bookingClass.code`.
 `fares[]` maps one entry per cabin class from `availableFareInfo[].cabinClasses[]`, carrying its
 `minPrice` and its own count, so the UI can show "Business ×12, Economy ×133" and the pilot sees
 which class is actually left.
@@ -138,11 +150,25 @@ Timetable responses contain **no personal data**. Unlike a roster, they are safe
 is the exception to the fixture rule in CLAUDE.md's Privacy section, and worth stating explicitly
 so it does not read as a violation later.
 
-Both probe captures get trimmed to ~3 trains each and committed as fixtures, chosen to cover:
+Both probe captures get trimmed and committed as fixtures. Trimming **deletes only** — no retained
+value is edited, so every field left is verbatim what TCDD sent. Removed: trains outside the
+chosen set, the `cars` seat maps, `bookingClassCapacities`, `trainSegments`, and all station
+fields except `id` and `name`. That takes the pair from 573 KB to 43 KB + 23 KB. A README beside
+them records exactly this.
 
-- a train with several bookable classes (`81034`: C ×12, Y1 ×133, DSB ×2)
-- a DSB-only train, which must report `isSoldOut: true` (`81030`)
-- the overnight service that crosses midnight (`12002`, 22:47 → 03:19)
+Istanbul → Eskişehir (`tcdd-ist-esk.json`):
+
+- `81034` — several classes at once (C ×12, Y1 ×133, DSB ×2), 7 segments
+- `81030` — DSB-only, must report `isSoldOut: true`, 8 segments
+- `12002` — overnight, 22:47 → 03:19 crossing midnight
+
+Eskişehir → Istanbul (`tcdd-esk-ist.json`):
+
+- `81001` — only 2 segments, so a mapper that hardcodes "last of many" is still exercised at the
+  short end
+- `22001` — the sleeper (B ×8 alongside Y1 ×153), 10 segments, 01:28 → 06:26. Doubles as the
+  reachability case: departure inside the metro's post-midnight band, arrival after the 06:00
+  alighting floor.
 
 `tcddResponse.test.ts` currently asserts against a fixture we invented; it will assert against what
 TCDD actually sent. Its `TZ` pin and the guard assertion proving the pin took effect both stay —
