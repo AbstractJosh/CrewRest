@@ -10,7 +10,7 @@
  * below for where it was read from. `TCDD_BOOKING_URL_TEMPLATE` overrides it, for if TCDD changes
  * the format:
  *
- *   TCDD_BOOKING_URL_TEMPLATE="https://ebilet.tcddtasimacilik.gov.tr/sefer-listesi-yonlendirme?binisIstasyonId={fromId}&inisIstasyonId={toId}&gidisTarih={date}"
+ *   TCDD_BOOKING_URL_TEMPLATE="https://ebilet.tcddtasimacilik.gov.tr/sefer-listesi-yonlendirme?binisIstasyonId={fromId}&inisIstasyonId={toId}&gidisTarih={date}&donusTarih=&yolcuSayisi=1&seyahatTuru=1"
  *
  * Placeholders: `{fromId}` `{toId}` (numeric TCDD station ids), `{from}` `{to}` (station names,
  * URL-encoded), `{date}` (YYYY-MM-DD), `{time}` (HH:MM, Türkiye local).
@@ -31,11 +31,19 @@ export const EBILET_SEARCH_URL = "https://ebilet.tcddtasimacilik.gov.tr/";
  * entirely, which is why the format was long assumed undiscoverable.
  *
  * `seyahatTuru=1` is one-way; `0` means round trip and additionally reads `donusTarih`.
+ *
+ * `donusTarih` is nevertheless sent — empty — on a one-way trip, because ebilet's redirect runs
+ * `JSON.parse(JSON.stringify(getVars.donusTarih))` *before* it checks `seyahatTuru`. Omit the
+ * parameter and that is `JSON.parse(undefined)`, which throws; the throw unwinds into the station
+ * loader's `.catch`, which shows "station list could not be reached" and bounces to the home page.
+ * Sending it empty rather than duplicating `gidisTarih` also keeps the round-trip branch's own
+ * `&& getVars.donusTarih` guard falsy, so a stray `seyahatTuru=0` degrades to one-way instead of
+ * inventing a same-day return. Verified in a browser on 2026-08-12, both directions.
  */
 export const EBILET_DEFAULT_TEMPLATE =
   "https://ebilet.tcddtasimacilik.gov.tr/sefer-listesi-yonlendirme" +
   "?binisIstasyonId={fromId}&inisIstasyonId={toId}&gidisTarih={date}" +
-  "&yolcuSayisi=1&seyahatTuru=1";
+  "&donusTarih=&yolcuSayisi=1&seyahatTuru=1";
 
 /** Türkiye-local "YYYY-MM-DD" — the date the pilot actually travels, not the UTC one. */
 function turkeyDateKey(date: Date): string {

@@ -17,8 +17,17 @@ describe("buildBookingUrl", () => {
     assert.equal(url.searchParams.get("inisIstasyonId"), "93");
     assert.equal(url.searchParams.get("gidisTarih"), "2026-08-15");
     assert.equal(url.searchParams.get("yolcuSayisi"), "1");
-    // 1 = one way. 0 would be a round trip and require donusTarih.
+    // 1 = one way. 0 would be a round trip and read donusTarih as a real date.
     assert.equal(url.searchParams.get("seyahatTuru"), "1");
+  });
+
+  it("still sends an empty donusTarih on a one-way trip", () => {
+    // Not redundant with the trip above: ebilet JSON.parses donusTarih before it looks at
+    // seyahatTuru, so omitting the key entirely throws and bounces the pilot to the home page.
+    // Present-but-empty is what makes the one-way link work at all.
+    const url = new URL(buildBookingUrl(OPTION));
+    assert.ok(url.searchParams.has("donusTarih"));
+    assert.equal(url.searchParams.get("donusTarih"), "");
   });
 
   it("uses the Türkiye-local travel date, not the UTC one", () => {

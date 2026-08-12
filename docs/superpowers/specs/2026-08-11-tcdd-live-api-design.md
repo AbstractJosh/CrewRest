@@ -130,7 +130,8 @@ fixed: the params are in a lazily-loaded chunk that an initial-bundle scan misse
 
 ```
 https://ebilet.tcddtasimacilik.gov.tr/sefer-listesi-yonlendirme
-  ?binisIstasyonId=1325&inisIstasyonId=93&gidisTarih=2026-08-15&yolcuSayisi=1&seyahatTuru=1
+  ?binisIstasyonId=1325&inisIstasyonId=93&gidisTarih=2026-08-15
+  &donusTarih=&yolcuSayisi=1&seyahatTuru=1
 ```
 
 `seyahatTuru=0` means round-trip and additionally reads `donusTarih`. `gidisTarih` is parsed with
@@ -139,10 +140,23 @@ https://ebilet.tcddtasimacilik.gov.tr/sefer-listesi-yonlendirme
 This becomes the built-in default for `buildBookingUrl`, with `TCDD_BOOKING_URL_TEMPLATE` retained
 as an override and a `{fromId}`/`{toId}` placeholder pair added for the numeric ids.
 
-**This is the one part not verified by execution.** It was derived from TCDD's router code, but
-ebilet is an SPA — a server-side fetch returns only the shell, so the link cannot be exercised from
-here. It needs one click in a real browser before the default ships. Until confirmed, the existing
-"fall back to the plain search page" behaviour is the safety net.
+**Verified in a browser on 2026-08-12** — the one thing this design could not confirm by execution
+when it was written, because ebilet serves only a shell to server-side fetches. Both directions
+land on `/sefer-listesi` with the right stations, date and passenger count and the real timetable
+rendered (IST→ESK 2026-08-15 lists YHT 81002 05:30→08:29 at ₺600; ESK→IST 2026-08-16 lists 22001
+Ankara Ekspresi 01:28→06:26, the same sleeper the fixtures carry).
+
+That verification changed the design. **`donusTarih` has to be sent even one-way**, which the
+static read of the chunk did not reveal: `SeferListRedirect` runs
+`JSON.parse(JSON.stringify(getVars.donusTarih))` *before* it branches on `seyahatTuru`, so omitting
+the key is `JSON.parse(undefined)` and throws. The throw unwinds into the station loader's
+`.catch`, which alerts "station list could not be reached" and routes to `/` — a failure that
+looks exactly like a WAF block or a bad station id and is neither. Sending it empty (rather than
+duplicating `gidisTarih`) also keeps the round-trip branch's own `&& getVars.donusTarih` guard
+falsy, so a stray `seyahatTuru=0` degrades to one-way instead of inventing a same-day return.
+
+The "fall back to the plain search page" behaviour remains the safety net for an unmappable
+station or a malformed override template.
 
 ## Testing
 
