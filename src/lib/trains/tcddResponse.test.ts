@@ -198,6 +198,72 @@ describe("mapTcddResponse", () => {
     assert.equal(economy?.availableSeats, 4);
   });
 
+  it("drops a connecting itinerary rather than presenting its legs as through-services", () => {
+    // A connection's second leg would be stamped with the *search's* origin and destination, so
+    // it would advertise the connection time as a through-service departure. Both fixtures are
+    // all-direct, so this case only exists synthetically.
+    const payload = {
+      trainLegs: [
+        {
+          trainAvailabilities: [
+            {
+              connection: false,
+              trains: [
+                {
+                  number: "direct",
+                  segments: [{ departureTime: 1786764600000, arrivalTime: 1786775100000 }],
+                },
+              ],
+            },
+            {
+              connection: true,
+              trains: [
+                {
+                  number: "leg one",
+                  segments: [{ departureTime: 1786768200000, arrivalTime: 1786773000000 }],
+                },
+                {
+                  number: "leg two",
+                  segments: [{ departureTime: 1786775000000, arrivalTime: 1786782000000 }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    assert.deepEqual(
+      mapTcddResponse(payload, MAP_OPTIONS).map((t) => t.trainNumber),
+      ["direct"],
+    );
+  });
+
+  it("drops a multi-train itinerary even when TCDD omits the connection flag", () => {
+    const payload = {
+      trainLegs: [
+        {
+          trainAvailabilities: [
+            {
+              trains: [
+                {
+                  number: "leg one",
+                  segments: [{ departureTime: 1786764600000, arrivalTime: 1786775100000 }],
+                },
+                {
+                  number: "leg two",
+                  segments: [{ departureTime: 1786775100000, arrivalTime: 1786782000000 }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    assert.deepEqual(mapTcddResponse(payload, MAP_OPTIONS), []);
+  });
+
   it("counts bookable seats and ignores wheelchair spaces", () => {
     const [train] = outbound();
     // C 12 + Y1 133 = 145. The DSB 2 is not a seat this pilot can buy.
@@ -248,14 +314,16 @@ describe("mapTcddResponse", () => {
   });
 
   it("drops unreadable rows rather than losing the whole day", () => {
+    // One train per availability, as TCDD sends it — an availability is an itinerary, and one
+    // carrying several trains is a connection this mapper drops outright.
     const payload = {
       trainLegs: [
         {
           trainAvailabilities: [
+            { trains: [{ number: "no segments" }] },
+            { trains: [{ number: "empty segments", segments: [] }] },
             {
               trains: [
-                { number: "no segments" },
-                { number: "empty segments", segments: [] },
                 {
                   number: "fine",
                   segments: [

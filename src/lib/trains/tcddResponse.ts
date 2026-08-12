@@ -90,7 +90,18 @@ export function parseTcddInstant(value: unknown, referenceDate: Date): Date | nu
  */
 export const EXCLUDED_CABIN_CODES: readonly string[] = ["DSB"];
 
-/** Every train in the payload, flattened out of the leg/availability nesting. */
+/**
+ * Every directly-served train in the payload, out of the leg/availability nesting.
+ *
+ * An entry in `trainAvailabilities` is one *itinerary*, not one train: it carries its own
+ * `connection`, `totalTripTime` and `minPrice`, and a connecting itinerary lists both legs under
+ * `trains`. Flattening those would stamp each leg with the *search's* origin and destination, so
+ * the second leg would be presented as a through-service departing at the connection time.
+ *
+ * Dropping them is deliberate. A pilot commuting home on a connection is not the use case, and a
+ * partial timetable is this integration's documented degradation — a plausible-looking wrong
+ * departure is not. Istanbul↔Eskişehir is direct, but IST→KRM is not, and KRM is selectable.
+ */
 function collectTrains(payload: unknown): Json[] {
   if (!isJson(payload)) return [];
   const legs = payload.trainLegs;
@@ -101,7 +112,12 @@ function collectTrains(payload: unknown): Json[] {
     if (!Array.isArray(availabilities)) return [];
     return availabilities.filter(isJson).flatMap((availability) => {
       const trains = availability.trains;
-      return Array.isArray(trains) ? trains.filter(isJson) : [];
+      if (!Array.isArray(trains)) return [];
+      const direct = trains.filter(isJson);
+      // `connection` covers what TCDD tells us; the length check covers what it shows us, in case
+      // a future payload carries multiple legs without setting the flag.
+      if (availability.connection === true || direct.length > 1) return [];
+      return direct;
     });
   });
 }
