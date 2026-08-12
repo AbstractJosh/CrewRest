@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, mock } from "node:test";
 import { buildTurkeyDate } from "@/lib/time/turkeyTime";
 import { buildBookingUrl, EBILET_SEARCH_URL } from "@/lib/trains/booking";
 
@@ -47,6 +47,11 @@ describe("buildBookingUrl", () => {
   });
 
   it("falls back to the search page when a template is malformed", () => {
-    assert.equal(buildBookingUrl(OPTION, "not a url {fromId}"), EBILET_SEARCH_URL);
+    mock.method(console, "warn", () => {});
+    try {
+      assert.equal(buildBookingUrl(OPTION, "not a url {fromId}"), EBILET_SEARCH_URL);
+    } finally {
+      mock.restoreAll();
+    }
   });
 });

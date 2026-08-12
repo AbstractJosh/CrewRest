@@ -10,7 +10,7 @@
  * below for where it was read from. `TCDD_BOOKING_URL_TEMPLATE` overrides it, for if TCDD changes
  * the format:
  *
- *   TCDD_BOOKING_URL_TEMPLATE="https://ebilet.tcddtasimacilik.gov.tr/?from={from}&to={to}&date={date}"
+ *   TCDD_BOOKING_URL_TEMPLATE="https://ebilet.tcddtasimacilik.gov.tr/sefer-listesi-yonlendirme?binisIstasyonId={fromId}&inisIstasyonId={toId}&gidisTarih={date}"
  *
  * Placeholders: `{fromId}` `{toId}` (numeric TCDD station ids), `{from}` `{to}` (station names,
  * URL-encoded), `{date}` (YYYY-MM-DD), `{time}` (HH:MM, Türkiye local).
