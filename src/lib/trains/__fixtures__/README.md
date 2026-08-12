@@ -26,10 +26,16 @@ every field present is verbatim what TCDD sent. Removed:
 
 `tcdd-ist-esk.json` — İstanbul(Söğütlüçeşme) → Eskişehir
 
+Two different blocks report cabin classes and they do not list the same ones, so each figure below
+says which it came from. `cabinClassAvailabilities[]` is what is left to sell and is what
+`availableSeats` sums; `availableFareInfo[].cabinClasses[]` is the priced fare list and is what
+`fares[]` maps. A class with nothing left appears in the second with `availabilityCount: 0` and is
+absent from the first entirely.
+
 | Train | Why |
 | --- | --- |
-| 81034 | Several cabin classes at once: C ×12, Y1 ×133, DSB ×2; also carries L (LOCA) at availabilityCount: 0 |
-| 81030 | DSB-only — must map to `isSoldOut: true`, because a pilot cannot book a wheelchair space; also carries L (LOCA) at availabilityCount: 0 |
+| 81034 | Several cabin classes at once — `cabinClassAvailabilities`: C ×12, Y1 ×133, DSB ×2. Its `availableFareInfo` fare list adds L (LOCA) at `availabilityCount: 0`, which `cabinClassAvailabilities` omits |
+| 81030 | DSB-only in `cabinClassAvailabilities` — must map to `isSoldOut: true` with no `fares` at all, because a pilot can book neither a wheelchair space nor its price. Its `availableFareInfo` still lists C, L and Y1 at `availabilityCount: 0` |
 | 12002 | Overnight, 22:47 → 03:19, crossing midnight |
 
 `tcdd-esk-ist.json` — Eskişehir → İstanbul(Söğütlüçeşme)

@@ -57,7 +57,9 @@ Env vars remain as overrides, not as the on-switch.
 bundle URLs, regex the JWT out of them, cache it. The cache is pinned to `globalThis` for the same
 reason the timetable cache and the Prisma client are — Next re-evaluates modules on every edit in
 dev, and a module-local variable would mean re-scraping TCDD's bundles on every keystroke. Exposes
-a `refresh()` that the client calls once on a `401`.
+a `resetTcddToken()` that the client calls once on a `401`. The in-flight scrape is memoized
+alongside the token, so the six concurrent `searchTrains` calls a cold window page can produce
+share one scrape instead of six.
 
 **`src/lib/trains/tcddClient.ts`** owns the browser header set, the `POST`, the timeout, the
 single 401-retry, and the translation of every failure into `TcddProviderError`.
@@ -105,11 +107,25 @@ const EXCLUDED_CABIN_CODES = ["DSB"]; // wheelchair spaces
 **Cabin codes and booking codes are different namespaces and they collide.** Cabin class `B` is
 YATAKLI (sleeper); booking class `B` is EKONOMİ STANDART. Read the code off
 `cabinClasses[].cabinClass.code`, never off `bookingClassAvailabilities[].bookingClass.code`.
-`fares[]` maps one entry per cabin class from `availableFareInfo[].cabinClasses[]`, carrying its
-`minPrice` and its own count, so the UI can show "Business ×12, Economy ×133" and the pilot sees
-which class is actually left.
+`fares[]` maps one entry per cabin class from `availableFareInfo[].cabinClasses[]` — **minus the
+same `EXCLUDED_CABIN_CODES`** — carrying its `minPrice` and its own count, so the UI can show
+"Business ×12, Economy ×133" and the pilot sees which class is actually left. The exclusion has to
+apply here too, not only to the seat count: `TripPlanner` reduces `fares[]` to a single cheapest
+price, so a DSB entry surviving into the list makes a sold-out train advertise a fare. When
+excluding leaves nothing, `fares` is absent rather than empty.
 
 `TrainFare.priceMinor` stays in kuruş; TCDD reports major-unit TRY, so multiply by 100.
+
+**An entry in `trainAvailabilities` is an itinerary, not a train.** It carries its own `connection`,
+`totalTripTime`, `minPrice` and `dayChanged`, and the leg's `resultCount` counts availabilities
+rather than trains — a connecting itinerary lists both legs under `trains[]`. The mapper drops any
+availability flagged `connection: true` or carrying more than one train, rather than flattening it.
+Every `TrainOption` is stamped with the search's own origin and destination, so a connection's
+second leg would otherwise be presented as a through-service whose departure is really the
+connection time. Dropping is the right call for this app: a pilot commuting home on a connection is
+not the use case, a partial timetable is the degradation this integration already documents, and a
+plausible-looking wrong departure is the worst failure the planner has. Istanbul↔Eskişehir is
+direct, but `KRM` and `KNY` are selectable home stations and IST→KRM comes back as a connection.
 
 ### 5. `tcddStations.ts` carries id and name
 
