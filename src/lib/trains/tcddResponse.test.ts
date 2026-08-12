@@ -127,6 +127,77 @@ describe("mapTcddResponse", () => {
     assert.equal(economy?.availableSeats, 133);
   });
 
+  it("leaves wheelchair spaces out of the fare list, not just the seat count", () => {
+    // Otherwise the DSB fare reaches `cheapestFare` in TripPlanner and can become the headline
+    // price on a train the pilot cannot board. It ties with Y1 at 60000 in these fixtures, so the
+    // symptom only shows on a day where DSB is cheaper — assert the exclusion, not the total.
+    const [train] = outbound();
+    assert.deepEqual(
+      train.fares?.map((f) => f.code),
+      ["C", "Y1"],
+    );
+  });
+
+  it("drops the fare list entirely when every priced cabin is excluded", () => {
+    // 81030 has DSB as its only priced fare. `isSoldOut: true` alongside a price would be a
+    // contradiction the UI has no honest way to render, so the field should be absent.
+    const soldOut = outbound().find((t) => t.trainNumber === "81030");
+    assert.equal(soldOut?.fares, undefined);
+  });
+
+  it("takes the cheapest price when a cabin appears in more than one fare family", () => {
+    // Every fixture train has exactly one `availableFareInfo` family, so the collision this
+    // guards against needs a synthetic payload.
+    const payload = {
+      trainLegs: [
+        {
+          trainAvailabilities: [
+            {
+              trains: [
+                {
+                  number: "two families",
+                  segments: [{ departureTime: 1786764600000, arrivalTime: 1786775100000 }],
+                  availableFareInfo: [
+                    {
+                      cabinClasses: [
+                        {
+                          cabinClass: { code: "Y1", name: "EKONOMİ" },
+                          minPrice: 750,
+                          availabilityCount: 20,
+                        },
+                      ],
+                    },
+                    {
+                      cabinClasses: [
+                        {
+                          cabinClass: { code: "Y1", name: "EKONOMİ" },
+                          minPrice: 500,
+                          availabilityCount: 4,
+                        },
+                        {
+                          cabinClass: { code: "C", name: "BUSİNESS" },
+                          minPrice: 900,
+                          availabilityCount: 3,
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const [train] = mapTcddResponse(payload, MAP_OPTIONS);
+    const economy = train.fares?.find((f) => f.code === "Y1");
+    assert.equal(train.fares?.length, 2);
+    assert.equal(economy?.priceMinor, 50000);
+    // The cheaper family's own count comes with it, not the dearer one's.
+    assert.equal(economy?.availableSeats, 4);
+  });
+
   it("counts bookable seats and ignores wheelchair spaces", () => {
     const [train] = outbound();
     // C 12 + Y1 133 = 145. The DSB 2 is not a seat this pilot can buy.

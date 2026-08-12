@@ -126,6 +126,10 @@ function cabinNameOf(entry: Json): string | undefined {
  * Fares are nested under fare families (`STANDART`, and others TCDD may add), so the same cabin
  * can appear more than once at different prices. The pilot cares what the class costs, not which
  * family it came from.
+ *
+ * `EXCLUDED_CABIN_CODES` is filtered here for the same reason `bookableSeats` filters it: a fare
+ * the pilot cannot buy must not reach the UI, which reduces this list to a single headline price.
+ * Leaving DSB in makes a sold-out train advertise a wheelchair-space fare.
  */
 function mapFares(train: Json): TrainFare[] | undefined {
   const families = train.availableFareInfo;
@@ -139,8 +143,9 @@ function mapFares(train: Json): TrainFare[] | undefined {
 
     for (const entry of classes.filter(isJson)) {
       const code = cabinCodeOf(entry);
+      if (!code || EXCLUDED_CABIN_CODES.includes(code)) continue;
       const price = entry.minPrice;
-      if (!code || typeof price !== "number" || !Number.isFinite(price)) continue;
+      if (typeof price !== "number" || !Number.isFinite(price)) continue;
 
       const fare: TrainFare = {
         code,
