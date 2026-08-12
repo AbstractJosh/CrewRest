@@ -8,7 +8,12 @@
  */
 
 import type { TcddStation } from "@/lib/trains/data/tcddStations";
-import { getTcddToken, resetTcddToken, type TcddAuthOptions } from "@/lib/trains/tcddAuth";
+import {
+  BROWSER_USER_AGENT,
+  getTcddToken,
+  resetTcddToken,
+  type TcddAuthOptions,
+} from "@/lib/trains/tcddAuth";
 import { TURKEY_UTC_OFFSET_MINUTES } from "@/lib/time/turkeyTime";
 
 export class TcddProviderError extends Error {
@@ -41,9 +46,9 @@ export const BROWSER_HEADERS: Record<string, string> = {
   "sec-fetch-mode": "cors",
   "sec-fetch-site": "same-site",
   "unit-id": "3895",
-  "User-Agent":
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
-    "(KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+  // Shared with the token scrape rather than duplicated: the two must look like one browser, and
+  // two literals cannot be kept in step by a comment saying they are.
+  "User-Agent": BROWSER_USER_AGENT,
 };
 
 /** Constant query parameters the site's own axios interceptor adds to every call. */
@@ -115,7 +120,17 @@ export async function requestAvailability(
   const label = `${origin.name}→${destination.name} on ${departureDate}`;
 
   const send = async (): Promise<Response> => {
-    const token = await getTcddToken(options.authOptions);
+    // Inside the try, not before it: a failed token scrape is the commonest failure this
+    // integration has, and letting `TcddAuthError` through would break the promise made at the top
+    // of this file — that every failure path surfaces as `TcddProviderError`. The cause chain is
+    // kept, or a scrape that stopped working would be undebuggable.
+    let token: string;
+    try {
+      token = await getTcddToken(options.authOptions);
+    } catch (cause) {
+      throw new TcddProviderError(`TCDD token unavailable for ${label}`, { cause });
+    }
+
     try {
       return await fetchImpl(url, {
         method: "POST",

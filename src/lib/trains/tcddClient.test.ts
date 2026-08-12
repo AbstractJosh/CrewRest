@@ -3,7 +3,7 @@ process.env.TZ = "America/New_York";
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 import { buildTurkeyDate } from "@/lib/time/turkeyTime";
-import { resetTcddToken } from "@/lib/trains/tcddAuth";
+import { resetTcddToken, TcddAuthError } from "@/lib/trains/tcddAuth";
 import {
   BROWSER_HEADERS,
   formatTcddDate,
@@ -92,6 +92,28 @@ describe("requestAvailability", () => {
     });
   });
 
+  /**
+   * Pinned as literals, not derived from `BROWSER_HEADERS`. Iterating that object's own keys only
+   * proves the spread happened: deleting `unit-id` or `sec-fetch-site` from it would shrink both
+   * sides of the comparison and still pass — which is precisely the regression the comment above
+   * `BROWSER_HEADERS` warns about, since the WAF answers 403 without them.
+   */
+  const REQUIRED_WAF_HEADERS = [
+    "Accept",
+    "Accept-Language",
+    "Content-Type",
+    "Origin",
+    "Referer",
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+    "sec-fetch-dest",
+    "sec-fetch-mode",
+    "sec-fetch-site",
+    "unit-id",
+    "User-Agent",
+  ];
+
   it("sends the browser headers the WAF requires, and a bare Authorization", async () => {
     const { fetchImpl, calls } = stubFetch([json({ trainLegs: [] })]);
 
@@ -99,7 +121,8 @@ describe("requestAvailability", () => {
 
     const post = calls.find((c) => c.url.startsWith(BASE));
     const headers = post?.init?.headers as Record<string, string>;
-    for (const key of Object.keys(BROWSER_HEADERS)) {
+    for (const key of REQUIRED_WAF_HEADERS) {
+      assert.ok(BROWSER_HEADERS[key], `BROWSER_HEADERS no longer defines ${key}`);
       assert.equal(headers[key], BROWSER_HEADERS[key], `missing WAF header ${key}`);
     }
     // Not "Bearer <token>" — TCDD rejects the prefixed form.
@@ -146,6 +169,29 @@ describe("requestAvailability", () => {
     await assert.rejects(
       () => requestAvailability(IST, ESK, "15-08-2026 00:00:00", options(fetchImpl)),
       TcddProviderError,
+    );
+  });
+
+  it("turns a failed token scrape into TcddProviderError, keeping the cause", async () => {
+    // This module's contract is that *every* failure path surfaces as `TcddProviderError`. An
+    // auth failure is the commonest one there is, so a caller branching on the class must not
+    // see `TcddAuthError` leak through.
+    const fetchImpl = (async (input: string | URL) => {
+      const url = String(input);
+      if (url === SITE) return new Response("<html>maintenance</html>", { status: 200 });
+      throw new Error("should not have reached the API without a token");
+    }) as unknown as typeof fetch;
+
+    await assert.rejects(
+      () => requestAvailability(IST, ESK, "15-08-2026 00:00:00", options(fetchImpl)),
+      (error: unknown) => {
+        assert.ok(error instanceof TcddProviderError, `got ${(error as Error)?.name}`);
+        assert.ok(
+          (error as Error).cause instanceof TcddAuthError,
+          "the scrape failure must survive as `cause` or it is undebuggable",
+        );
+        return true;
+      },
     );
   });
 
