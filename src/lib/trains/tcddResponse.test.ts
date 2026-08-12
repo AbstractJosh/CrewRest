@@ -277,6 +277,34 @@ describe("mapTcddResponse", () => {
     assert.equal(soldOut?.isSoldOut, true);
   });
 
+  it("treats onSale: false as sold out however many seats are reported", () => {
+    // Every fixture train is on sale, so the `onSale` branch needs a synthetic payload.
+    const payload = {
+      trainLegs: [
+        {
+          trainAvailabilities: [
+            {
+              trains: [
+                {
+                  number: "withdrawn",
+                  onSale: false,
+                  segments: [{ departureTime: 1786764600000, arrivalTime: 1786775100000 }],
+                  cabinClassAvailabilities: [
+                    { cabinClass: { code: "Y1" }, availabilityCount: 120 },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const [train] = mapTcddResponse(payload, MAP_OPTIONS);
+    assert.equal(train.availableSeats, 120);
+    assert.equal(train.isSoldOut, true);
+  });
+
   it("keeps an overnight service on the right side of midnight", () => {
     const overnight = outbound().find((t) => t.trainNumber === "12002");
     // 22:47 on the 15th → 03:19 on the 16th, Türkiye local.

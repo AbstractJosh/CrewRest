@@ -44,6 +44,15 @@ const globalForTcdd = globalThis as unknown as {
 
 const cache = (globalForTcdd.tcddTimetableCache ??= new Map<string, CacheEntry>());
 
+/**
+ * Empties the timetable cache. The token cache has `resetTcddToken` for the same reason: a
+ * process-wide store pinned to `globalThis` needs a way to be cleared, or every test in a file
+ * shares whatever the first one populated.
+ */
+export function resetTcddTimetableCache(): void {
+  cache.clear();
+}
+
 /** Türkiye-local calendar date, "YYYY-MM-DD" — the cache key. */
 function turkeyDateKey(date: Date): string {
   const shifted = new Date(date.getTime() + TURKEY_UTC_OFFSET_MINUTES * 60_000);
@@ -120,7 +129,12 @@ export class TcddTrainProvider implements TrainProvider {
     const cacheKey = `${originCode}|${destinationCode}|${dateKey}`;
 
     const cached = cache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) return cached.options;
+    if (cached) {
+      if (cached.expiresAt > Date.now()) return cached.options;
+      // Dropped rather than left to be overwritten: a stale entry for a date nobody asks about
+      // again would otherwise sit in a process-lifetime Map forever.
+      cache.delete(cacheKey);
+    }
 
     const payload = await this.fetchPayload(origin, destination, date);
     const options = mapTcddResponse(payload, { originCode, destinationCode, date });

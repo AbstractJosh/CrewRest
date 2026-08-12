@@ -1,9 +1,12 @@
 process.env.TZ = "America/New_York";
 
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { beforeEach, describe, it } from "node:test";
 import { buildTurkeyDate } from "@/lib/time/turkeyTime";
-import { TcddTrainProvider } from "@/lib/trains/TcddTrainProvider";
+import {
+  resetTcddTimetableCache,
+  TcddTrainProvider,
+} from "@/lib/trains/TcddTrainProvider";
 
 const QUERY_DATE = buildTurkeyDate(2026, 7, 15, 9, 0);
 
@@ -36,6 +39,10 @@ const PAYLOAD = {
   ],
 };
 
+// The timetable cache is pinned to `globalThis`, so without this every test after the first would
+// read whatever entry its predecessor left behind.
+beforeEach(() => resetTcddTimetableCache());
+
 describe("TcddTrainProvider", () => {
   it("maps what the client returned", async () => {
     const { provider } = providerWith(PAYLOAD);
@@ -52,15 +59,12 @@ describe("TcddTrainProvider", () => {
   });
 
   it("caches per route and Türkiye-local date", async () => {
-    // Uses a route distinct from the other tests in this file (IST->ANK rather than IST->ESK):
-    // the timetable cache is globalThis-pinned and shared across tests, and reusing IST->ESK here
-    // would read the entry the first test already populated for the same Türkiye day.
     const { provider, calls } = providerWith(PAYLOAD);
-    await provider.searchTrains("IST", "ANK", QUERY_DATE);
-    await provider.searchTrains("IST", "ANK", buildTurkeyDate(2026, 7, 15, 21, 0));
+    await provider.searchTrains("IST", "ESK", QUERY_DATE);
+    await provider.searchTrains("IST", "ESK", buildTurkeyDate(2026, 7, 15, 21, 0));
     assert.equal(calls(), 1, "same Türkiye day should hit the cache");
 
-    await provider.searchTrains("IST", "ANK", buildTurkeyDate(2026, 7, 16, 9, 0));
+    await provider.searchTrains("IST", "ESK", buildTurkeyDate(2026, 7, 16, 9, 0));
     assert.equal(calls(), 2, "a different day is a different request");
   });
 
