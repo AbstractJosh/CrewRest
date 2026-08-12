@@ -90,16 +90,20 @@ There is **no sample roster in the repo** and there cannot be one (see Privacy).
 
 `TrainProvider` (`src/lib/trains/TrainProvider.ts`) is the seam for timetable data, with three implementations:
 
-- `TcddTrainProvider` — live times, fares and seat availability. Active only when `TCDD_API_BASE_URL` is set. Caches per route/date for 10 minutes on a `globalThis`-pinned Map (same reason as `src/lib/prisma.ts`) and batches day requests three at a time.
+- `TcddTrainProvider` — live times, fares and seat availability. On by default; `TCDD_API_BASE_URL` only overrides the built-in endpoint (for a proxy or a mock). Caches per route/date for 10 minutes on a `globalThis`-pinned Map (same reason as `src/lib/prisma.ts`) and batches day requests three at a time.
 - `StaticTrainProvider` — the curated, approximate YHT timetable in `src/lib/trains/data/yhtRoutes.ts`.
 - `FallbackTrainProvider` — runs the live one with the static one standing by.
 
 TCDD publishes no official API and the endpoint being integrated is unofficial, so **a failing live request is the expected steady state, not a bug**: it must degrade to estimates, never error the page. Every `TrainOption` carries `source: "live" | "estimate"`, each provider declares `capabilities`, and user-facing copy is driven by those rather than hardcoded — keep the "planning estimates, confirm on ebilet" framing for anything sourced `estimate`. New optional fields on `TrainOption` must stay optional so `StaticTrainProvider` keeps compiling and the UI degrades field by field.
 
-Two things in the live path are unverified guesses, isolated on purpose:
+Both halves of the live path are now confirmed against the real service rather than guessed:
 
-- Response field names in `src/lib/trains/tcddResponse.ts`. The mapper accepts several plausible spellings of each and drops rows it can't read rather than throwing. Adjust there; the fixture tests will catch it.
-- The ebilet deep-link format (`TCDD_BOOKING_URL_TEMPLATE`, unset by default). ebilet is an SPA that serves only a shell to server-side fetches, so the params cannot be discovered from code — they have to be read off a real search in a browser. Unset, booking links go to the plain search page.
+- Response field names in `src/lib/trains/tcddResponse.ts`: the payload shape (`trainLegs` → `trainAvailabilities` → `trains`) is verified against real captured responses in `src/lib/trains/__fixtures__/`. The mapper reads specific field names against that known shape and drops rows it can't read rather than throwing — that's resilience to a row-level surprise, not uncertainty about the shape itself. If TCDD's payload changes, adjust there; the fixture tests will catch it.
+
+  Two deliberate omissions in that mapper, both of which look like bugs until you know why. `EXCLUDED_CABIN_CODES` (DSB, wheelchair spaces) is filtered out of **both** the seat count and `fares[]` — on a typical day most trains have sold out of everything else, so leaving DSB in either place advertises a train the pilot cannot board, once as availability and once as a headline price. And an entry in `trainAvailabilities` is an *itinerary*, not a train: one flagged `connection: true`, or carrying more than one train, is dropped whole. CrewRest stamps every option with the search's own origin and destination, so a connection's second leg would be presented as a through-service departing at the connection time. Istanbul↔Eskişehir is direct, but `KRM` is a selectable home station and IST→KRM is not. A partial timetable is this integration's documented degradation; a plausible-looking wrong departure is not.
+- The ebilet deep-link format. ebilet is an SPA that serves only a shell to server-side fetches, but the params weren't undiscoverable, only lazily loaded: they're read by the `SeferListRedirect` component in ebilet's lazily-loaded `4696.*.chunk.js`, which parses exactly six query variables (`binisIstasyonId`, `inisIstasyonId`, `gidisTarih`, `donusTarih`, `seyahatTuru`, `yolcuSayisi`). `EBILET_DEFAULT_TEMPLATE` in `src/lib/trains/booking.ts` fills those in by default; `TCDD_BOOKING_URL_TEMPLATE` overrides it if TCDD changes the format. Confirmed in a browser on 2026-08-12, both directions: the link lands on `/sefer-listesi` with the right stations, date and passenger count, and the real timetable rendered.
+
+  **`donusTarih` must be sent even on a one-way link.** `SeferListRedirect` runs `JSON.parse(JSON.stringify(getVars.donusTarih))` *before* it branches on `seyahatTuru`, so omitting the key is `JSON.parse(undefined)` — it throws, unwinds into the station loader's `.catch`, and silently bounces the pilot to the ebilet home page with a "station list could not be reached" alert. The template sends it empty. That is also why the default is not simply "the six params"; the failure looked exactly like a WAF or station-id problem and was neither.
 
 ### Buying tickets
 
@@ -120,6 +124,10 @@ Prisma 7 runs through the `better-sqlite3` driver adapter (`src/lib/prisma.ts`),
 `/data` is gitignored on purpose. A real roster PDF contains the holder's passport number, medical record dates, a month of their movements, and the full names of every colleague they flew with. Never commit a roster, never paste roster contents into a commit message or issue, and never add a fixture built from a real one.
 
 `dev.db` and `.env` are gitignored for the same reason — the database holds the parsed roster, which is the same personal data in another shape. Don't attach or upload either when debugging.
+
+Timetable responses are the one exception: `src/lib/trains/__fixtures__/` holds real TCDD
+availability payloads, which contain public departure data and no passenger information. See the
+README there.
 
 ## Other constraints
 

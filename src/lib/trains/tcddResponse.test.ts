@@ -80,116 +80,323 @@ describe("parseTcddInstant", () => {
   });
 });
 
+import { readFileSync } from "node:fs";
+
+function fixture(name: string): unknown {
+  return JSON.parse(
+    readFileSync(new URL(`./__fixtures__/${name}.json`, import.meta.url), "utf8"),
+  );
+}
+
 describe("mapTcddResponse", () => {
-  it("maps a nested payload with fares and seat counts", () => {
-    const payload = {
-      data: {
-        trains: [
-          {
-            id: "seq-9001",
-            trainNumber: "YHT 32002",
-            departureTime: "2026-08-15T07:30:00",
-            arrivalTime: "2026-08-15T09:35:00",
-            fares: [
-              { className: "Ekonomi", price: "450,50", availableSeats: 42 },
-              { className: "Business", price: "780,00", availableSeats: 3 },
-            ],
-          },
-        ],
-      },
-    };
+  const outbound = () => mapTcddResponse(fixture("tcdd-ist-esk"), MAP_OPTIONS);
 
-    const [train] = mapTcddResponse(payload, MAP_OPTIONS);
+  it("reads every train out of the trainLegs → trainAvailabilities → trains nesting", () => {
+    assert.deepEqual(
+      outbound().map((t) => t.trainNumber),
+      ["81034", "81030", "12002"],
+    );
+  });
 
-    assert.equal(train.trainNumber, "YHT 32002");
-    assert.equal(train.providerTrainId, "seq-9001");
-    assert.equal(train.source, "live");
+  it("takes departure from the first segment and arrival from the last", () => {
+    const [train] = outbound();
+    // 06:30 → 09:25 Türkiye local on 2026-08-15. Reading segments[0].arrivalTime instead would
+    // give 06:56 — arrival at the first intermediate stop, not at Eskişehir.
+    assert.equal(train.departureAt.toISOString(), "2026-08-15T03:30:00.000Z");
+    assert.equal(train.arrivalAt.toISOString(), "2026-08-15T06:25:00.000Z");
+    assert.equal(train.durationMinutes, 175);
+  });
+
+  it("carries the route and provenance through", () => {
+    const [train] = outbound();
     assert.equal(train.originCode, "IST");
     assert.equal(train.destinationCode, "ESK");
-    assert.equal(train.durationMinutes, 125);
-    // Turkish decimal comma, stored as kuruş.
-    assert.equal(train.fares?.[0].priceMinor, 45050);
-    assert.equal(train.fares?.[0].currency, "TRY");
-    assert.equal(train.availableSeats, 45);
-    assert.equal(train.isSoldOut, false);
+    assert.equal(train.source, "live");
+    assert.equal(train.providerTrainId, "191862");
   });
 
-  it("reads a bare array payload and Turkish field names", () => {
-    const payload = [
-      { trenAdi: "YHT 12345", kalkis: "13:00", varis: "15:05", bosYerSayisi: 12 },
-    ];
+  it("maps one fare per cabin class, priced in kuruş", () => {
+    const [train] = outbound();
+    const business = train.fares?.find((f) => f.code === "C");
+    const economy = train.fares?.find((f) => f.code === "Y1");
 
-    const [train] = mapTcddResponse(payload, MAP_OPTIONS);
-
-    assert.equal(train.trainNumber, "YHT 12345");
-    assert.equal(train.departureAt.toISOString(), "2026-08-15T10:00:00.000Z");
-    assert.equal(train.durationMinutes, 125);
-    assert.equal(train.availableSeats, 12);
+    assert.equal(business?.className, "BUSİNESS");
+    assert.equal(business?.priceMinor, 90000);
+    assert.equal(business?.currency, "TRY");
+    assert.equal(business?.availableSeats, 12);
+    assert.equal(economy?.availableSeats, 133);
   });
 
-  it("rolls an overnight service into the next day", () => {
-    const payload = [{ trainNumber: "YHT night", kalkis: "23:30", varis: "01:35" }];
-
-    const [train] = mapTcddResponse(payload, MAP_OPTIONS);
-
-    assert.equal(train.departureAt.toISOString(), "2026-08-15T20:30:00.000Z");
-    assert.equal(train.arrivalAt.toISOString(), "2026-08-15T22:35:00.000Z");
-    assert.equal(train.durationMinutes, 125);
+  it("leaves wheelchair spaces out of the fare list, not just the seat count", () => {
+    // Otherwise the DSB fare reaches `cheapestFare` in TripPlanner and can become the headline
+    // price on a train the pilot cannot board. It ties with Y1 at 60000 in these fixtures, so the
+    // symptom only shows on a day where DSB is cheaper — assert the exclusion, not the total.
+    const [train] = outbound();
+    assert.deepEqual(
+      train.fares?.map((f) => f.code),
+      ["C", "Y1"],
+    );
   });
 
-  it("marks a train with no seats as sold out", () => {
-    const payload = [
-      { trainNumber: "YHT full", kalkis: "09:00", varis: "11:00", availableSeats: 0 },
-    ];
-    assert.equal(mapTcddResponse(payload, MAP_OPTIONS)[0].isSoldOut, true);
+  it("drops the fare list entirely when every priced cabin is excluded", () => {
+    // 81030 has DSB as its only priced fare. `isSoldOut: true` alongside a price would be a
+    // contradiction the UI has no honest way to render, so the field should be absent.
+    const soldOut = outbound().find((t) => t.trainNumber === "81030");
+    assert.equal(soldOut?.fares, undefined);
   });
 
-  it("prefers an explicit sold-out flag over the seat count", () => {
-    const payload = [
-      { trainNumber: "YHT held", kalkis: "09:00", varis: "11:00", availableSeats: 5, soldOut: true },
-    ];
-    assert.equal(mapTcddResponse(payload, MAP_OPTIONS)[0].isSoldOut, true);
-  });
-
-  it("drops unreadable rows rather than losing the whole day", () => {
+  it("takes the cheapest price when a cabin appears in more than one fare family", () => {
+    // Every fixture train has exactly one `availableFareInfo` family, so the collision this
+    // guards against needs a synthetic payload.
     const payload = {
-      trains: [
-        { trainNumber: "good", kalkis: "09:00", varis: "11:00" },
-        { trainNumber: "no times" },
-        { trainNumber: "also good", kalkis: "13:00", varis: "15:00" },
+      trainLegs: [
+        {
+          trainAvailabilities: [
+            {
+              trains: [
+                {
+                  number: "two families",
+                  segments: [{ departureTime: 1786764600000, arrivalTime: 1786775100000 }],
+                  availableFareInfo: [
+                    {
+                      cabinClasses: [
+                        {
+                          cabinClass: { code: "Y1", name: "EKONOMİ" },
+                          minPrice: 750,
+                          availabilityCount: 20,
+                        },
+                      ],
+                    },
+                    {
+                      cabinClasses: [
+                        {
+                          cabinClass: { code: "Y1", name: "EKONOMİ" },
+                          minPrice: 500,
+                          availabilityCount: 4,
+                        },
+                        {
+                          cabinClass: { code: "C", name: "BUSİNESS" },
+                          minPrice: 900,
+                          availabilityCount: 3,
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
       ],
     };
 
-    const trains = mapTcddResponse(payload, MAP_OPTIONS);
-    assert.deepEqual(
-      trains.map((t) => t.trainNumber),
-      ["good", "also good"],
-    );
+    const [train] = mapTcddResponse(payload, MAP_OPTIONS);
+    const economy = train.fares?.find((f) => f.code === "Y1");
+    assert.equal(train.fares?.length, 2);
+    assert.equal(economy?.priceMinor, 50000);
+    // The cheaper family's own count comes with it, not the dearer one's.
+    assert.equal(economy?.availableSeats, 4);
   });
 
-  it("returns departures in time order", () => {
-    const payload = [
-      { trainNumber: "late", kalkis: "18:00", varis: "20:00" },
-      { trainNumber: "early", kalkis: "07:30", varis: "09:30" },
-    ];
+  it("drops a connecting itinerary rather than presenting its legs as through-services", () => {
+    // A connection's second leg would be stamped with the *search's* origin and destination, so
+    // it would advertise the connection time as a through-service departure. Both fixtures are
+    // all-direct, so this case only exists synthetically.
+    const payload = {
+      trainLegs: [
+        {
+          trainAvailabilities: [
+            {
+              connection: false,
+              trains: [
+                {
+                  number: "direct",
+                  segments: [{ departureTime: 1786764600000, arrivalTime: 1786775100000 }],
+                },
+              ],
+            },
+            {
+              connection: true,
+              trains: [
+                {
+                  number: "leg one",
+                  segments: [{ departureTime: 1786768200000, arrivalTime: 1786773000000 }],
+                },
+                {
+                  number: "leg two",
+                  segments: [{ departureTime: 1786775000000, arrivalTime: 1786782000000 }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
 
     assert.deepEqual(
       mapTcddResponse(payload, MAP_OPTIONS).map((t) => t.trainNumber),
-      ["early", "late"],
+      ["direct"],
     );
   });
 
-  it("returns nothing for a payload with no recognisable trains", () => {
+  it("drops a multi-train itinerary even when TCDD omits the connection flag", () => {
+    const payload = {
+      trainLegs: [
+        {
+          trainAvailabilities: [
+            {
+              trains: [
+                {
+                  number: "leg one",
+                  segments: [{ departureTime: 1786764600000, arrivalTime: 1786775100000 }],
+                },
+                {
+                  number: "leg two",
+                  segments: [{ departureTime: 1786775100000, arrivalTime: 1786782000000 }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    assert.deepEqual(mapTcddResponse(payload, MAP_OPTIONS), []);
+  });
+
+  it("counts bookable seats and ignores wheelchair spaces", () => {
+    const [train] = outbound();
+    // C 12 + Y1 133 = 145. The DSB 2 is not a seat this pilot can buy.
+    assert.equal(train.availableSeats, 145);
+    assert.equal(train.isSoldOut, false);
+  });
+
+  it("treats a train with only wheelchair spaces left as sold out", () => {
+    const soldOut = outbound().find((t) => t.trainNumber === "81030");
+    assert.equal(soldOut?.availableSeats, 0);
+    assert.equal(soldOut?.isSoldOut, true);
+  });
+
+  it("treats onSale: false as sold out however many seats are reported", () => {
+    // Every fixture train is on sale, so the `onSale` branch needs a synthetic payload.
+    const payload = {
+      trainLegs: [
+        {
+          trainAvailabilities: [
+            {
+              trains: [
+                {
+                  number: "withdrawn",
+                  onSale: false,
+                  segments: [{ departureTime: 1786764600000, arrivalTime: 1786775100000 }],
+                  cabinClassAvailabilities: [
+                    { cabinClass: { code: "Y1" }, availabilityCount: 120 },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const [train] = mapTcddResponse(payload, MAP_OPTIONS);
+    assert.equal(train.availableSeats, 120);
+    assert.equal(train.isSoldOut, true);
+  });
+
+  it("keeps an overnight service on the right side of midnight", () => {
+    const overnight = outbound().find((t) => t.trainNumber === "12002");
+    // 22:47 on the 15th → 03:19 on the 16th, Türkiye local.
+    assert.equal(overnight?.departureAt.toISOString(), "2026-08-15T19:47:00.000Z");
+    assert.equal(overnight?.arrivalAt.toISOString(), "2026-08-16T00:19:00.000Z");
+    assert.equal(overnight?.durationMinutes, 272);
+  });
+
+  it("counts a sleeper berth as bookable", () => {
+    const trains = mapTcddResponse(fixture("tcdd-esk-ist"), {
+      originCode: "ESK",
+      destinationCode: "IST",
+      date: QUERY_DATE,
+    });
+    const sleeper = trains.find((t) => t.trainNumber === "22001");
+    // Y1 153 + B 8. Cabin class B is YATAKLI, a berth the pilot can absolutely book.
+    assert.equal(sleeper?.availableSeats, 161);
+    assert.equal(sleeper?.fares?.some((f) => f.code === "B"), true);
+  });
+
+  it("handles a train with only two segments", () => {
+    const trains = mapTcddResponse(fixture("tcdd-esk-ist"), {
+      originCode: "ESK",
+      destinationCode: "IST",
+      date: QUERY_DATE,
+    });
+    const short = trains.find((t) => t.trainNumber === "81001");
+    assert.equal(short?.departureAt.toISOString(), "2026-08-15T04:18:00.000Z");
+    assert.equal(short?.arrivalAt.toISOString(), "2026-08-15T07:07:00.000Z");
+  });
+
+  it("returns departures in time order", () => {
+    const times = outbound().map((t) => t.departureAt.getTime());
+    assert.deepEqual(times, [...times].sort((a, b) => a - b));
+  });
+
+  it("drops unreadable rows rather than losing the whole day", () => {
+    // One train per availability, as TCDD sends it — an availability is an itinerary, and one
+    // carrying several trains is a connection this mapper drops outright.
+    const payload = {
+      trainLegs: [
+        {
+          trainAvailabilities: [
+            { trains: [{ number: "no segments" }] },
+            { trains: [{ number: "empty segments", segments: [] }] },
+            {
+              trains: [
+                {
+                  number: "fine",
+                  segments: [
+                    { departureTime: 1786764600000, arrivalTime: 1786775100000 },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    assert.deepEqual(
+      mapTcddResponse(payload, MAP_OPTIONS).map((t) => t.trainNumber),
+      ["fine"],
+    );
+  });
+
+  it("returns nothing for a payload that isn't an availability response", () => {
     assert.deepEqual(mapTcddResponse({ error: "rate limited" }, MAP_OPTIONS), []);
     assert.deepEqual(mapTcddResponse(null, MAP_OPTIONS), []);
     assert.deepEqual(mapTcddResponse("<html>go away</html>", MAP_OPTIONS), []);
+    assert.deepEqual(mapTcddResponse({ trainLegs: "nope" }, MAP_OPTIONS), []);
   });
 
-  it("leaves fares undefined when the payload carries no prices", () => {
-    const [train] = mapTcddResponse(
-      [{ trainNumber: "YHT bare", kalkis: "09:00", varis: "11:00" }],
-      MAP_OPTIONS,
-    );
+  it("leaves seat and fare data undefined when the payload carries none", () => {
+    const payload = {
+      trainLegs: [
+        {
+          trainAvailabilities: [
+            {
+              trains: [
+                {
+                  number: "bare",
+                  segments: [{ departureTime: 1786764600000, arrivalTime: 1786775100000 }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const [train] = mapTcddResponse(payload, MAP_OPTIONS);
     assert.equal(train.fares, undefined);
     assert.equal(train.availableSeats, undefined);
     assert.equal(train.isSoldOut, undefined);

@@ -1,11 +1,10 @@
 /**
  * Live TCDD-backed timetable.
  *
- * TCDD publishes no official API, so this talks to whatever endpoint `TCDD_API_BASE_URL` points
- * at and treats failure as routine rather than exceptional — an unofficial endpoint going away,
- * rate-limiting us, or changing its payload is the expected steady state, not a bug. Every
- * failure path throws `TcddProviderError`, which `FallbackTrainProvider` catches to fall back to
- * the curated timetable.
+ * Thin by design: `tcddAuth` gets the token, `tcddClient` makes the request, `tcddResponse` maps
+ * the payload. What is left here is caching and the decision not to bother asking about a station
+ * we cannot name. Every failure below the seam surfaces as `TcddProviderError`, which
+ * `FallbackTrainProvider` catches to fall back to the curated timetable.
  */
 
 import type {
@@ -15,18 +14,18 @@ import type {
   TrainStation,
 } from "@/lib/trains/TrainProvider";
 import { STATIONS, YHT_ROUTES } from "@/lib/trains/data/yhtRoutes";
-import { toTcddStation } from "@/lib/trains/data/tcddStations";
+import { toTcddStation, type TcddStation } from "@/lib/trains/data/tcddStations";
+import {
+  formatTcddDate,
+  requestAvailability,
+  TcddProviderError,
+  type TcddClientOptions,
+} from "@/lib/trains/tcddClient";
 import { mapTcddResponse } from "@/lib/trains/tcddResponse";
 import { TURKEY_UTC_OFFSET_MINUTES } from "@/lib/time/turkeyTime";
 
-export class TcddProviderError extends Error {
-  constructor(message: string, options?: { cause?: unknown }) {
-    super(message, options);
-    this.name = "TcddProviderError";
-  }
-}
+export { TcddProviderError };
 
-const REQUEST_TIMEOUT_MS = 8_000;
 const CACHE_TTL_MS = 10 * 60_000;
 
 interface CacheEntry {
@@ -45,7 +44,16 @@ const globalForTcdd = globalThis as unknown as {
 
 const cache = (globalForTcdd.tcddTimetableCache ??= new Map<string, CacheEntry>());
 
-/** Türkiye-local calendar date, "YYYY-MM-DD" — what the API is asked for, and the cache key. */
+/**
+ * Empties the timetable cache. The token cache has `resetTcddToken` for the same reason: a
+ * process-wide store pinned to `globalThis` needs a way to be cleared, or every test in a file
+ * shares whatever the first one populated.
+ */
+export function resetTcddTimetableCache(): void {
+  cache.clear();
+}
+
+/** Türkiye-local calendar date, "YYYY-MM-DD" — the cache key. */
 function turkeyDateKey(date: Date): string {
   const shifted = new Date(date.getTime() + TURKEY_UTC_OFFSET_MINUTES * 60_000);
   const month = String(shifted.getUTCMonth() + 1).padStart(2, "0");
@@ -54,28 +62,26 @@ function turkeyDateKey(date: Date): string {
 }
 
 export interface TcddProviderConfig {
-  baseUrl: string;
-  token?: string;
-  /** Path appended to `baseUrl` for a timetable search. */
-  searchPath?: string;
+  /** Overrides the built-in API base. Only needed to point at a proxy or a test double. */
+  baseUrl?: string;
+  clientOptions?: TcddClientOptions;
 }
 
-export function readTcddConfigFromEnv(): TcddProviderConfig | null {
+/**
+ * The live provider needs no credential — the token is scraped at runtime — so there is nothing
+ * to check for and this always returns a config. `TCDD_API_BASE_URL` remains an override for
+ * pointing at a proxy, not the switch that turns the integration on.
+ */
+export function readTcddConfigFromEnv(): TcddProviderConfig {
   const baseUrl = process.env.TCDD_API_BASE_URL?.trim();
-  if (!baseUrl) return null;
-  return {
-    baseUrl: baseUrl.replace(/\/+$/, ""),
-    token: process.env.TCDD_API_TOKEN?.trim() || undefined,
-    searchPath: process.env.TCDD_API_SEARCH_PATH?.trim() || "/search",
-  };
+  return baseUrl ? { baseUrl: baseUrl.replace(/\/+$/, "") } : {};
 }
 
 export class TcddTrainProvider implements TrainProvider {
   /**
-   * Fares and seat availability are claimed because every known TCDD wrapper exposes them, but
-   * the mapper leaves those fields undefined when they're absent — so the UI reads the option,
-   * not this flag, before rendering a price. `booking` stays false: TCDD settles payment through
-   * a bank 3-D Secure redirect, which is not something this app can drive.
+   * `booking` stays false: TCDD settles payment through a bank 3-D Secure redirect, which is not
+   * something this app can drive. The other three are now genuinely backed — verified against the
+   * live endpoint rather than assumed.
    */
   readonly capabilities: TrainProviderCapabilities = {
     liveTimetable: true,
@@ -96,6 +102,18 @@ export class TcddTrainProvider implements TrainProvider {
     );
   }
 
+  /** Seam for tests — overriding this keeps the suite off the network. */
+  protected async fetchPayload(
+    origin: TcddStation,
+    destination: TcddStation,
+    date: Date,
+  ): Promise<unknown> {
+    return requestAvailability(origin, destination, formatTcddDate(date), {
+      ...this.config.clientOptions,
+      baseUrl: this.config.baseUrl ?? this.config.clientOptions?.baseUrl,
+    });
+  }
+
   async searchTrains(
     originCode: string,
     destinationCode: string,
@@ -111,57 +129,17 @@ export class TcddTrainProvider implements TrainProvider {
     const cacheKey = `${originCode}|${destinationCode}|${dateKey}`;
 
     const cached = cache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) return cached.options;
+    if (cached) {
+      if (cached.expiresAt > Date.now()) return cached.options;
+      // Dropped rather than left to be overwritten: a stale entry for a date nobody asks about
+      // again would otherwise sit in a process-lifetime Map forever.
+      cache.delete(cacheKey);
+    }
 
-    const payload = await this.fetchTimetable(origin, destination, dateKey);
+    const payload = await this.fetchPayload(origin, destination, date);
     const options = mapTcddResponse(payload, { originCode, destinationCode, date });
 
     cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, options });
     return options;
-  }
-
-  private async fetchTimetable(
-    origin: string,
-    destination: string,
-    dateKey: string,
-  ): Promise<unknown> {
-    const url = new URL(
-      `${this.config.baseUrl}${this.config.searchPath ?? "/search"}`,
-    );
-    url.searchParams.set("from", origin);
-    url.searchParams.set("to", destination);
-    url.searchParams.set("date", dateKey);
-
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        headers: {
-          Accept: "application/json",
-          ...(this.config.token
-            ? { Authorization: `Bearer ${this.config.token}` }
-            : {}),
-        },
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        // The provider caches results itself; Next shouldn't hold a second, differently-scoped copy.
-        cache: "no-store",
-      });
-    } catch (cause) {
-      throw new TcddProviderError(
-        `TCDD request failed for ${origin}→${destination} on ${dateKey}`,
-        { cause },
-      );
-    }
-
-    if (!response.ok) {
-      throw new TcddProviderError(
-        `TCDD responded ${response.status} for ${origin}→${destination} on ${dateKey}`,
-      );
-    }
-
-    try {
-      return await response.json();
-    } catch (cause) {
-      throw new TcddProviderError("TCDD returned a body that isn't JSON", { cause });
-    }
   }
 }

@@ -5,8 +5,14 @@ export interface TrainStation {
 }
 
 export interface TrainFare {
-  /** Cabin/seat class as the provider names it, e.g. "Ekonomi", "Business". */
+  /** Cabin/seat class as the provider names it, e.g. "EKONOMİ", "BUSİNESS". */
   className: string;
+  /**
+   * The provider's own cabin-class code (`Y1`, `C`, `L`, `B`, `DSB`). Note this is the *cabin*
+   * namespace, which collides with the booking-class one — cabin `B` is a sleeper berth, booking
+   * class `B` is economy standard.
+   */
+  code?: string;
   /** Price in the currency's minor unit (kuruş) — integers avoid float drift. */
   priceMinor: number;
   currency: string;
