@@ -28,3 +28,9 @@ export type {
 } from "@/lib/trains/TrainProvider";
 export { searchTrainsInWindow } from "@/lib/trains/searchWindow";
 export { buildBookingUrl } from "@/lib/trains/booking";
+export type { SerializedTrainOption } from "@/lib/trains/serialized";
+export {
+  serializeTrainOption,
+  toDatedTrainOption,
+  findCommittedIndex,
+} from "@/lib/trains/serialized";

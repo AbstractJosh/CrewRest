@@ -90,6 +90,17 @@ model CommuteCommitment {
    * only signal that a planned trip is actually ticketed. No passenger identity is stored.
    */
   bookingReference String?
+  /** Pilot-supplied label for the trip, e.g. "Vacation". Null means show the dates instead. */
+  tripName         String?
+  /**
+   * Free-text notes the pilot attached to this trip. Null means none.
+   *
+   * Deliberately unvalidated and unbounded. No passenger identity is asked for anywhere in
+   * CrewRest, and the UI copy for this field prompts for trip context, never for documents.
+   */
+  notes            String?
+  /** When the pilot cancelled this plan. Null means the plan is live. */
+  cancelledAt      DateTime?
   committedAt    DateTime @default(now())
 
   offWindow OffWindow @relation(fields: [offWindowId], references: [id])

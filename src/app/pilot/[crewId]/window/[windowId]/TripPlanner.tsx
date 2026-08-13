@@ -3,31 +3,11 @@
 import { useMemo, useState } from "react";
 import { evaluateCommuteFeasibility } from "@/lib/trains/commuteFeasibility";
 import { formatDurationMinutes, formatTurkeyRange } from "@/lib/time/turkeyTime";
-import type { TrainDataSource, TrainFare } from "@/lib/trains/TrainProvider";
+import { toDatedTrainOption } from "@/lib/trains/serialized";
+import type { TrainFare } from "@/lib/trains/TrainProvider";
+import type { SerializedTrainOption } from "@/lib/trains/serialized";
 
-export interface SerializedTrainOption {
-  trainNumber: string;
-  originCode: string;
-  destinationCode: string;
-  departureAt: string;
-  arrivalAt: string;
-  durationMinutes: number;
-  source: TrainDataSource;
-  providerTrainId?: string;
-  fares?: TrainFare[];
-  availableSeats?: number;
-  isSoldOut?: boolean;
-  /** Resolved on the server, where the booking-link template lives. */
-  bookingUrl: string;
-}
-
-function toDated(option: SerializedTrainOption) {
-  return {
-    ...option,
-    departureAt: new Date(option.departureAt),
-    arrivalAt: new Date(option.arrivalAt),
-  };
-}
+export type { SerializedTrainOption };
 
 function cheapestFare(option: SerializedTrainOption): TrainFare | null {
   if (!option.fares || option.fares.length === 0) return null;
@@ -153,7 +133,11 @@ export default function TripPlanner({
 
   const feasibility = useMemo(() => {
     if (!outbound || !returnTrain) return null;
-    return evaluateCommuteFeasibility(travelWindow, toDated(outbound), toDated(returnTrain));
+    return evaluateCommuteFeasibility(
+      travelWindow,
+      toDatedTrainOption(outbound),
+      toDatedTrainOption(returnTrain),
+    );
   }, [travelWindow, outbound, returnTrain]);
 
   // Estimates and live data can mix: the live provider may answer for one direction and fail

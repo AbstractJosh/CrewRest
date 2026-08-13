@@ -48,8 +48,19 @@ PDF → extractPdfText → parseSchedulePdf → computeOffWindows → [persisted
 ```
 
 - `POST /api/upload` (`src/app/api/upload/route.ts`) runs the left half and persists `Pilot` / `ScheduleUpload` / `DutyPeriod` / `OffWindow`.
-- `src/app/pilot/[crewId]/page.tsx` and `.../window/[windowId]/page.tsx` are server components that run the right half on every render.
+- `src/app/pilot/[crewId]/page.tsx`, `.../window/[windowId]/page.tsx` and `src/app/plans/page.tsx` are server components that run the right half on every render. They hold no logic of their own: each awaits one builder from `src/lib/views/` and renders the result.
+- `/` is a static welcome page with two links; `/upload` is the roster upload form. `/plans` lists every commitment on the server — CrewRest has no auth, no session and no user concept, so "my plans" is every plan, and pilot attribution shows only when more than one roster has been uploaded. It must carry `export const dynamic = "force-dynamic"`: it queries the database and has no dynamic params, so without it Next prerenders it and hits SQLite during `next build`.
 - The three `PATCH`-style routes under `src/app/api/pilot/[crewId]/` only write per-pilot settings; they never recompute stored data (see "stored vs derived").
+
+### The view layer (`src/lib/views/`)
+
+Each page has a builder split in two: a pure `assemble*View` doing the filtering, choosing, serializing and commitment-matching, and an `async build*View` around it doing the Prisma queries and the timetable search. Nothing about that assembly is web-specific, so it is unit-tested directly instead of by rendering a page against a database, and a route handler could serve it as JSON to a client that isn't React.
+
+Three of them: `offWindowView.ts`, `pilotScheduleView.ts`, `plansView.ts`. A pure `assemble*` **never reads the clock** — `assemblePlansView` takes `now` as an input, because the upcoming/past split would otherwise be non-deterministic and its tests would depend on the time of day they ran. `plansView` also takes its station-name map as an input rather than calling the provider, and reads trains from the stored commitment JSON rather than the timetable: those legs were serialized at commit time, and making a list page wait on an unofficial endpoint for data already stored would be a bad trade.
+
+`SerializedTrainOption` — the `TrainOption` shape with ISO instants and a resolved booking URL — lives in `src/lib/trains/serialized.ts`, not beside the component that renders it. It is a contract: it crosses to the client *and* it is what `CommuteCommitment.outboundTrain`/`returnTrain` store.
+
+`src/lib/portability.test.ts` enforces the property all of this exists to protect: nothing under `src/lib` imports `next/*`, and nothing outside an explicit `SERVER_ONLY` allowlist imports Prisma. The intent is a second client (a native app talking to this server) staying cheap to add; that is only true while the core has no framework in it. When something genuinely belongs on the server, add it to `SERVER_ONLY` rather than relaxing the rule.
 
 ### Time handling — read `src/lib/time/turkeyTime.ts` before touching any date
 
@@ -116,6 +127,15 @@ Reachability is separate from the timetable and encodes the feeder metro's hours
 ### Data model
 
 `prisma/schema.prisma`. `OffWindow` has no foreign key to the duty that precedes it; the window page recovers it by querying the latest `DutyPeriod` ending at or before the window start. `DutyPeriod.flightLegs` and `CommuteCommitment.outboundTrain`/`returnTrain` are JSON columns cast to `FlightLeg[]` / `SerializedTrainOption` on read — these casts are unchecked, so changing either shape means migrating existing rows or handling both.
+
+**Cancelling keeps the row.** `CommuteCommitment.cancelledAt` is a nullable timestamp that is both the flag and when it happened — active means null. Two consequences that are easy to break and hard to notice:
+
+- `assembleOffWindowView` **ignores a cancelled commitment**, so the planner opens fresh instead of presenting a dropped trip as live. The filter is deliberately in the pure assembler, not in `buildOffWindowView`, so the branch stays reachable from a unit test.
+- `POST .../commit` clears `cancelledAt` on its update branch, so re-committing revives the plan rather than leaving a row that is both freshly committed and cancelled. Because `offWindowId` is `@unique` there is one row per window, so reviving overwrites the cancelled record — acceptable because a new roster upload creates entirely new `OffWindow` rows, and cancelled history therefore survives roster changes.
+
+`PATCH .../commit` handles rename, notes and cancel/restore in one handler. **Omitting a key leaves that column alone** — that is load-bearing, not incidental: the plans card saves its name field and its notes field independently, each sending only its own key, so neither clobbers the other's in-flight edit.
+
+`CommuteCommitment.notes` is free text. No passenger identity is asked for or derived anywhere in CrewRest; the field's label and placeholder prompt for trip context, never for passport or card details. There is deliberately no validation — rejecting digits would be theatre.
 
 Prisma 7 runs through the `better-sqlite3` driver adapter (`src/lib/prisma.ts`), the client is generated to `src/generated/prisma` (not `node_modules`), and `prisma.config.ts` loads `DATABASE_URL` via `dotenv`. Prisma-specific skills live in `.claude/skills/prisma-*` — consult them before non-trivial Prisma work.
 
