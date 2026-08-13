@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { formatTurkeyDateTime, formatUtcRange } from "@/lib/time/turkeyTime";
 import type { PlanCardView } from "@/lib/views/plansView";
 
@@ -39,10 +39,25 @@ export default function PlanCard({
   const [confirmingCancel, setConfirmingCancel] = useState(false);
 
   /**
+   * What the server actually holds for each text field, as of the last successful PATCH — not
+   * `plan.tripName`/`plan.notes`, which stay stale until the `router.refresh()` below lands new
+   * props. Comparing a blur against the prop instead of this ref is a race: fire a save, then
+   * blur again before the refreshed props arrive, and the stale prop matches the new (already
+   * reverted) field value, so the second edit is silently dropped instead of PATCHed. See the
+   * fix-round note in task-7-report.md for how this was verified.
+   */
+  const lastSavedTripName = useRef(plan.tripName ?? "");
+  const lastSavedNotes = useRef(plan.notes ?? "");
+
+  /**
    * Each field PATCHes only its own key, so an in-flight notes save can't overwrite a rename the
    * pilot made a moment earlier — the handler leaves omitted keys alone.
    */
-  async function patch(body: Record<string, unknown>, setState: (s: SaveState) => void) {
+  async function patch(
+    body: Record<string, unknown>,
+    setState: (s: SaveState) => void,
+    onSaved?: () => void,
+  ) {
     setState("saving");
     try {
       const response = await fetch(`/api/off-windows/${plan.windowId}/commit`, {
@@ -54,6 +69,10 @@ export default function PlanCard({
         setState("error");
         return;
       }
+      // Update the "last known saved" ref before router.refresh(), which only *requests* fresh
+      // props — it doesn't resolve them synchronously here, so a blur that happens in the gap
+      // must compare against this, not against `plan`.
+      onSaved?.();
       setState("saved");
       router.refresh();
     } catch {
@@ -81,8 +100,11 @@ export default function PlanCard({
               setNameState("idle");
             }}
             onBlur={() => {
-              if (tripName.trim() === (plan.tripName ?? "")) return;
-              patch({ tripName }, setNameState);
+              const trimmed = tripName.trim();
+              if (trimmed === lastSavedTripName.current) return;
+              patch({ tripName }, setNameState, () => {
+                lastSavedTripName.current = trimmed;
+              });
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter") e.currentTarget.blur();
@@ -130,8 +152,11 @@ export default function PlanCard({
               setNotesState("idle");
             }}
             onBlur={() => {
-              if (notes.trim() === (plan.notes ?? "")) return;
-              patch({ notes }, setNotesState);
+              const trimmed = notes.trim();
+              if (trimmed === lastSavedNotes.current) return;
+              patch({ notes }, setNotesState, () => {
+                lastSavedNotes.current = trimmed;
+              });
             }}
             rows={notesExpanded ? 8 : 3}
             placeholder="Anything worth remembering about this trip — who you're meeting, what to confirm before you travel."
@@ -185,6 +210,18 @@ export default function PlanCard({
           </button>
         ) : confirmingCancel ? (
           <>
+            {/*
+              "Keep it" renders first, in the slot "Cancel plan" occupied — the harmless choice
+              lands under a double-click, which is exactly the gesture the two-step guard exists
+              to survive. "Confirm cancel" moves one slot over so a double-click can't land on it.
+            */}
+            <button
+              type="button"
+              onClick={() => setConfirmingCancel(false)}
+              className="text-sm text-zinc-500 underline underline-offset-4 dark:text-zinc-400"
+            >
+              Keep it
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -194,13 +231,6 @@ export default function PlanCard({
               className="text-sm font-medium text-red-600 underline underline-offset-4 dark:text-red-400"
             >
               Confirm cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirmingCancel(false)}
-              className="text-sm text-zinc-500 underline underline-offset-4 dark:text-zinc-400"
-            >
-              Keep it
             </button>
           </>
         ) : (
