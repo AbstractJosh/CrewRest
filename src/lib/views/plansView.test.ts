@@ -220,6 +220,35 @@ describe("assemblePlansView", () => {
       assert.equal(view.upcoming[0].hasEstimates, false);
     });
 
+    it("flags an estimate on the outbound leg alone, not just the return", () => {
+      const estimated = plan("est-out", 20, {
+        outboundTrain: leg(
+          "IST",
+          "ESK",
+          buildTurkeyDate(2026, 7, 20, 8, 0),
+          buildTurkeyDate(2026, 7, 20, 11, 0),
+          "estimate",
+        ),
+      });
+      const view = assemblePlansView(
+        makeInput({ commitments: [estimated, plan("live", 18)] }),
+      );
+
+      assert.equal(view.upcoming[1].hasEstimates, true, "outbound estimate is enough on its own");
+      assert.equal(view.upcoming[0].hasEstimates, false);
+    });
+
+    it("carries notes through unchanged, including interior line breaks", () => {
+      const withNotes = plan("noted", 20, { notes: "Meet Ali\n\nBring the paperwork" });
+      const withoutNotes = plan("bare", 22, { notes: null });
+      const view = assemblePlansView(
+        makeInput({ commitments: [withNotes, withoutNotes] }),
+      );
+
+      assert.equal(view.upcoming[0].notes, "Meet Ali\n\nBring the paperwork");
+      assert.equal(view.upcoming[1].notes, null);
+    });
+
     it("links to the window planner for that pilot", () => {
       const view = assemblePlansView(makeInput({ commitments: [plan("w1", 20)] }));
 

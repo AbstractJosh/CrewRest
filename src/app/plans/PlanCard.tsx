@@ -43,8 +43,8 @@ export default function PlanCard({
    * `plan.tripName`/`plan.notes`, which stay stale until the `router.refresh()` below lands new
    * props. Comparing a blur against the prop instead of this ref is a race: fire a save, then
    * blur again before the refreshed props arrive, and the stale prop matches the new (already
-   * reverted) field value, so the second edit is silently dropped instead of PATCHed. See the
-   * fix-round note in task-7-report.md for how this was verified.
+   * reverted) field value, so the second edit is silently dropped instead of PATCHed. See commit
+   * c101112 for how this was verified.
    */
   const lastSavedTripName = useRef(plan.tripName ?? "");
   const lastSavedNotes = useRef(plan.notes ?? "");
