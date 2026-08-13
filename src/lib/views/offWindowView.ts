@@ -57,6 +57,8 @@ export interface OffWindowViewInput {
     outboundTrain: SerializedTrainOption;
     returnTrain: SerializedTrainOption;
     bookingReference: string | null;
+    /** Set when the pilot cancelled this plan. A cancelled commitment is ignored here. */
+    cancelledAt: Date | null;
   } | null;
   destinations: TrainStation[];
   /** Raw search results, before reachability and sold-out filtering. */
@@ -95,7 +97,12 @@ export interface OffWindowView {
 }
 
 export function assembleOffWindowView(input: OffWindowViewInput): OffWindowView {
-  const { pilot, offWindow, commitment } = input;
+  const { pilot, offWindow } = input;
+
+  // A cancelled plan is not a plan. Restoring its train selection here would show a trip the
+  // pilot has dropped as though it were live, with "Update commitment" on the button.
+  const commitment =
+    input.commitment && input.commitment.cancelledAt === null ? input.commitment : null;
 
   const travel = computeTravelWindow(offWindow, pilot.airportTransferMinutes);
 
@@ -219,6 +226,7 @@ export async function buildOffWindowView(
           outboundTrain: offWindow.commitment.outboundTrain as unknown as SerializedTrainOption,
           returnTrain: offWindow.commitment.returnTrain as unknown as SerializedTrainOption,
           bookingReference: offWindow.commitment.bookingReference,
+          cancelledAt: offWindow.commitment.cancelledAt,
         }
       : null,
     destinations: trainProvider.listDestinationsFromIstanbul(),

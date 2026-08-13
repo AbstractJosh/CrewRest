@@ -242,8 +242,31 @@ describe("assembleOffWindowView", () => {
         outboundTrain: serializeTrainOption({ ...option, ...tweaks }),
         returnTrain: serializeTrainOption(option),
         bookingReference: null,
+        cancelledAt: null,
       };
     }
+
+    it("ignores a cancelled commitment, so the planner opens fresh", () => {
+      // Cancelling must not leave a dropped trip looking live. The planner should behave
+      // exactly as it does for a window that was never committed to.
+      const view = assembleOffWindowView(
+        makeInput({
+          outboundCandidates: outbounds,
+          commitment: {
+            ...commitmentTo(outbounds[1]),
+            cancelledAt: buildTurkeyDate(2026, 7, 14, 9, 0),
+          },
+        }),
+      );
+
+      assert.equal(view.isCommitted, false);
+      assert.equal(view.bookingReference, "");
+      assert.equal(
+        view.initialOutboundIndex,
+        0,
+        "should fall back to the computed default, not the cancelled selection",
+      );
+    });
 
     it("matches on the provider's id even when the timetable moved underneath it", () => {
       // Same train, renumbered and retimed since the commitment was made. The departure-time
