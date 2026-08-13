@@ -28,6 +28,7 @@ const SERVER_ONLY = new Set([
   "prisma.ts",
   "views/offWindowView.ts",
   "views/pilotScheduleView.ts",
+  "views/plansView.ts",
 ]);
 
 function sourceFiles(dir: string, prefix = ""): string[] {

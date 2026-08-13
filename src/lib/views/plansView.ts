@@ -13,6 +13,8 @@
 
 import { formatTurkeyRange } from "@/lib/time/turkeyTime";
 import type { SerializedTrainOption } from "@/lib/trains/serialized";
+import { prisma } from "@/lib/prisma";
+import { trainProvider } from "@/lib/trains";
 
 export interface PlanCommitmentInput {
   windowId: string;
@@ -128,4 +130,42 @@ export function assemblePlansView(input: PlansViewInput): PlansView {
     totalCount: input.commitments.length,
     showPilot: new Set(input.commitments.map((c) => c.crewId)).size > 1,
   };
+}
+
+/**
+ * Loads every commitment on the server and assembles the view.
+ *
+ * There is no user identity anywhere in CrewRest — the pilot page is a URL keyed to a crew ID —
+ * so "my plans" is every plan. `showPilot` covers the case where more than one roster has been
+ * uploaded.
+ */
+export async function buildPlansView(now: Date = new Date()): Promise<PlansView> {
+  const rows = await prisma.commuteCommitment.findMany({
+    include: { offWindow: { include: { schedule: { include: { pilot: true } } } } },
+  });
+
+  // `listDestinationsFromIstanbul` returns destinations *from* IST, so it never contains IST
+  // itself — the origin end of every outbound leg has to be seeded separately.
+  const stationNames: Record<string, string> = { IST: "Istanbul" };
+  for (const station of trainProvider.listDestinationsFromIstanbul()) {
+    stationNames[station.code] = station.city;
+  }
+
+  return assemblePlansView({
+    now,
+    stationNames,
+    commitments: rows.map((row) => ({
+      windowId: row.offWindowId,
+      crewId: row.offWindow.schedule.pilot.crewId,
+      pilotName: row.offWindow.schedule.pilot.name,
+      tripName: row.tripName,
+      notes: row.notes,
+      bookingReference: row.bookingReference,
+      cancelledAt: row.cancelledAt,
+      windowEndAt: row.offWindow.endAt,
+      // Unchecked casts, as everywhere these JSON columns are read — see CLAUDE.md.
+      outboundTrain: row.outboundTrain as unknown as SerializedTrainOption,
+      returnTrain: row.returnTrain as unknown as SerializedTrainOption,
+    })),
+  });
 }
