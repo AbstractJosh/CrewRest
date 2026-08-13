@@ -1,26 +1,111 @@
 @import "tailwindcss";
 
+/*
+ * Tailwind's built-in `dark:` keys off prefers-color-scheme alone, which desynchronises from the
+ * tokens below in BOTH directions once a manual override exists: in auto-on-a-dark-OS the tokens
+ * go dark but `dark:` never fires, and with light forced on a dark OS the tokens go light while
+ * `dark:` still fires. These two rules are the same two rules as the media query and the attribute
+ * selector below — EDIT THEM TOGETHER.
+ */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:where(:not([data-theme="light"]) *) { @slot; }
+  }
+  &:where([data-theme="dark"] *) { @slot; }
+}
+
+/* Light — ticket stock. Warm off-white, never pure #fff; ink, never pure black. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #faf9f7;
+  --card: #ffffff;
+  --sunken: #f4f2ef;
+  --ink: #1a1a17;
+  --ink-muted: #5c5a54;
+  --ink-faint: #94918a;
+  --rule: #e3e0da;
+  --perf: #cfcbc3;
+  --action: #1a1a17;
+  --action-ink: #faf9f7;
+  --ok: #1f6f4a;
+  --ok-bg: #e8f3ec;
+  --warn: #8a5a12;
+  --warn-bg: #fbf1de;
+  --danger: #9b2c2c;
+  --danger-bg: #fbeaea;
+}
+
+/*
+ * Dark is not light inverted — it is ink on a dark card. The two blocks below are duplicated on
+ * purpose: CSS cannot share one declaration block between a media query and an attribute
+ * selector. KEEP THEM IDENTICAL.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0f0f0e;
+    --card: #1a1a18;
+    --sunken: #141413;
+    --ink: #f2f0eb;
+    --ink-muted: #a3a09a;
+    --ink-faint: #6e6b65;
+    --rule: #2e2d2a;
+    --perf: #3d3b37;
+    --action: #f2f0eb;
+    --action-ink: #1a1a18;
+    --ok: #7fcfa4;
+    --ok-bg: #14291f;
+    --warn: #e8b96a;
+    --warn-bg: #2b2216;
+    --danger: #f08a8a;
+    --danger-bg: #2e1919;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper: #0f0f0e;
+  --card: #1a1a18;
+  --sunken: #141413;
+  --ink: #f2f0eb;
+  --ink-muted: #a3a09a;
+  --ink-faint: #6e6b65;
+  --rule: #2e2d2a;
+  --perf: #3d3b37;
+  --action: #f2f0eb;
+  --action-ink: #1a1a18;
+  --ok: #7fcfa4;
+  --ok-bg: #14291f;
+  --warn: #e8b96a;
+  --warn-bg: #2b2216;
+  --danger: #f08a8a;
+  --danger-bg: #2e1919;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-rule: var(--rule);
+  --color-perf: var(--perf);
+  --color-action: var(--action);
+  --color-action-ink: var(--action-ink);
+  --color-ok: var(--ok);
+  --color-ok-bg: var(--ok-bg);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/*
+ * `font-family` here previously hardcoded Arial, silently overriding the Geist fonts layout.tsx
+ * loads. The app rendered in Arial from the first commit until this change.
+ */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
 }
