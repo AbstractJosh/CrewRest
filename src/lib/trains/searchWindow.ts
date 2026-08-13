@@ -1,5 +1,5 @@
 import type { TrainOption, TrainProvider } from "@/lib/trains/TrainProvider";
-import { TURKEY_UTC_OFFSET_MINUTES } from "@/lib/time/turkeyTime";
+import { turkeyMidnight } from "@/lib/time/turkeyTime";
 
 /** Guards against a malformed window producing an unbounded number of provider calls. */
 const MAX_DAYS_SEARCHED = 31;
@@ -12,17 +12,6 @@ const MAX_DAYS_SEARCHED = 31;
 const REQUEST_BATCH_SIZE = 3;
 
 const DAY_MS = 24 * 60 * 60_000;
-
-/** Midnight Turkey-local, as a UTC instant, for the day the given instant falls on. */
-function turkeyMidnight(date: Date): Date {
-  const shifted = new Date(date.getTime() + TURKEY_UTC_OFFSET_MINUTES * 60_000);
-  const midnightShiftedMs = Date.UTC(
-    shifted.getUTCFullYear(),
-    shifted.getUTCMonth(),
-    shifted.getUTCDate(),
-  );
-  return new Date(midnightShiftedMs - TURKEY_UTC_OFFSET_MINUTES * 60_000);
-}
 
 /**
  * Every train on a route that fits entirely inside an off-window.
