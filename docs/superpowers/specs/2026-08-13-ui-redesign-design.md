@@ -283,11 +283,26 @@ Day rows down the page, a 00:00–24:00 axis across. Duty blocks are positioned 
 minutes-of-day; a duty crossing midnight is clipped and continues on the next row. Commute windows
 that meet the pilot's threshold render as a tinted band linking to their planner page.
 
-**This requires no changes to `src/lib`.** `ScheduleDutyView` already carries `startAt`, `endAt`,
-`type` and `rawCode`; `ScheduleWindowView` already carries the travel window and its id; and
-`turkeyMinutesOfDay` already exists in `src/lib/time/turkeyTime.ts` for the positioning. Positioning
-goes through that helper and never through `getHours()` — the timezone rule in CLAUDE.md applies
-here as much as anywhere.
+**The view models already carry the data.** `ScheduleDutyView` has `startAt`, `endAt`, `type` and
+`rawCode`; `ScheduleWindowView` has the travel window and its id. No view builder changes.
+
+**Two small `src/lib` additions are required, contrary to an earlier draft of this spec.** That
+draft claimed `turkeyMinutesOfDay` was an exported helper in `src/lib/time/turkeyTime.ts`. It is
+not — it is a private function inside `src/lib/trains/reachability.ts`, and the day-boundary helper
+the timeline actually needs, `turkeyMidnight`, is private to `src/lib/trains/searchWindow.ts`. So:
+
+1. Promote **`turkeyMidnight`** into `src/lib/time/turkeyTime.ts` as an exported helper and have
+   `searchWindow.ts` import it. Behaviour is identical — the body moves verbatim. Deriving a
+   Türkiye-local midnight is exactly the operation CLAUDE.md warns must never be improvised, so the
+   timeline must reuse this rather than grow a second copy. `turkeyMinutesOfDay` stays private to
+   `reachability.ts`: nothing new consumes it, and moving it would be churn.
+2. Add a pure `src/lib/views/timelineLayout.ts` that turns duties and windows into day rows with
+   percentage offsets. It is layout arithmetic with real edge cases — midnight crossings,
+   multi-day duties — so it belongs in `src/lib` where the existing test suite reaches it, not
+   inside a component.
+
+Both stay framework-free and Prisma-free, so `portability.test.ts` passes unchanged. Positioning
+goes through the promoted helper and never through `getHours()`.
 
 Duty types are distinguished by tone: flight duty solid, home standby hatched, day off light. It
 degrades to a scrollable band at narrow widths rather than reflowing.
@@ -314,7 +329,10 @@ with them:
   vacated, so a double-click lands on the harmless choice.
 - **`assembleOffWindowView` ignoring cancelled commitments**, and `POST …/commit` clearing
   `cancelledAt` on its update branch.
-- **Every computation in `src/lib`.** This is a UI redesign; the pipeline is untouched.
+- **Every existing computation in `src/lib`.** The pipeline — parsing, off-window computation,
+  travel windows, reachability, the train providers — is untouched. The only `src/lib` work is
+  additive: the two helper promotions and the new `timelineLayout.ts` in §5. Promoting a helper
+  must not change its behaviour, which is what the characterisation tests in that task are for.
 
 ### 8. File layout
 
@@ -331,7 +349,14 @@ controls, `HomeCityForm`) stay colocated with their routes and are rebuilt on to
 
 ### 9. Testing and verification
 
-No new test infrastructure. Acceptance is:
+No new test *infrastructure* — but the two `src/lib` additions in §5 are pure logic and do get real
+tests, written test-first in the existing `node:test` setup. `turkeyTime.test.ts` is new and, like
+`tcddResponse.test.ts`, **must pin `process.env.TZ` to a non-Türkiye zone before its first import
+and carry a guard assertion proving the pin took effect** — without it the suite passes vacuously
+on a UTC+3 host. The React components get no tests; they are presentational, and the logic they
+render is already covered.
+
+Acceptance is:
 
 - `npm test` green — unchanged, including `src/lib/portability.test.ts`, which must still pass
   without adding anything to its `SERVER_ONLY` allowlist.
@@ -367,7 +392,8 @@ notches, no rotated text. Character comes from type and structure only.
 
 ## Out of scope
 
-- Any change to `src/lib` computation, the PDF parser, the train providers, or the schema.
+- Any change to existing `src/lib` behaviour, the PDF parser, the train providers, or the schema.
+  (§5's helper promotions move code without changing what it does; `timelineLayout.ts` is new.)
 - Authentication, sessions, or any user concept — CrewRest deliberately has none.
 - Storing passenger identity. Out of scope by standing decision.
 - The actual mobile port. This redesign only guarantees nothing structural blocks it.
