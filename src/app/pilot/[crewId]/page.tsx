@@ -122,7 +122,7 @@ export default async function PilotPage({
           </p>
         </div>
         <Link
-          href="/"
+          href="/upload"
           className="text-sm font-medium text-zinc-600 underline underline-offset-4 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-50"
         >
           Upload new schedule

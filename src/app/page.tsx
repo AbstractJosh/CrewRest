@@ -1,45 +1,10 @@
-"use client";
+import Link from "next/link";
 
-import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
-
+/**
+ * The landing page. Deliberately static and database-free: it names the two things CrewRest does
+ * and gets out of the way. Adding a plan count here would make the first paint wait on a query.
+ */
 export default function Home() {
-  const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const file = fileInputRef.current?.files?.[0];
-    if (!file) {
-      setError("Choose a schedule PDF first.");
-      return;
-    }
-
-    setIsUploading(true);
-    setError(null);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        setError(data.error ?? "Upload failed.");
-        return;
-      }
-      router.push(`/pilot/${data.crewId}`);
-    } catch {
-      setError("Upload failed. Check your connection and try again.");
-    } finally {
-      setIsUploading(false);
-    }
-  }
-
   return (
     <div className="flex flex-1 items-center justify-center bg-zinc-50 px-6 py-16 dark:bg-black">
       <main className="w-full max-w-lg">
@@ -47,33 +12,40 @@ export default function Home() {
           CrewRest
         </h1>
         <p className="mt-2 text-zinc-600 dark:text-zinc-400">
-          Upload your monthly flight schedule PDF. CrewRest finds the gaps
-          between your duties that are long enough to be worth a train trip
-          home, and helps you decide whether to commit to the commute.
+          Find the gaps between your duties that are long enough to be worth a train trip
+          home, and keep track of the ones you commit to.
         </p>
 
-        <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/pdf,.pdf"
-            className="rounded-lg border border-zinc-300 bg-white p-3 text-sm text-zinc-700 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-900 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-          />
-          {error && (
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-          )}
-          <button
-            type="submit"
-            disabled={isUploading}
-            className="rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+        <div className="mt-8 flex flex-col gap-3">
+          <Link
+            href="/upload"
+            className="group rounded-lg border border-zinc-200 bg-white p-5 transition-colors hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-600"
           >
-            {isUploading ? "Reading schedule..." : "Upload schedule"}
-          </button>
-        </form>
+            <span className="font-medium text-zinc-900 dark:text-zinc-100">
+              Plan from schedule →
+            </span>
+            <span className="mt-1 block text-sm text-zinc-500 dark:text-zinc-400">
+              Upload your monthly roster PDF and see which off-periods are long enough to
+              travel home.
+            </span>
+          </Link>
+
+          <Link
+            href="/plans"
+            className="group rounded-lg border border-zinc-200 bg-white p-5 transition-colors hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-600"
+          >
+            <span className="font-medium text-zinc-900 dark:text-zinc-100">
+              My plans →
+            </span>
+            <span className="mt-1 block text-sm text-zinc-500 dark:text-zinc-400">
+              The trips you&apos;ve committed to, with their trains, tickets and notes.
+            </span>
+          </Link>
+        </div>
 
         <p className="mt-6 text-xs text-zinc-500 dark:text-zinc-500">
-          No account needed — after upload you&apos;ll get a link keyed to
-          your crew ID that you can come back to.
+          No account needed — after upload you&apos;ll get a link keyed to your crew ID that
+          you can come back to.
         </p>
       </main>
     </div>
