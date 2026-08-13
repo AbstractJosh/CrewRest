@@ -70,7 +70,7 @@ export default function ThemeToggle() {
       onClick={cycle}
       aria-label={`Theme: ${shown}. Click to change.`}
       title={`Theme: ${shown}`}
-      className="rounded-md border border-rule p-1.5 text-ink-muted transition-colors hover:border-ink-faint hover:text-ink"
+      className="rounded-md border border-rule p-1.5 text-ink-muted outline-none transition-colors hover:border-ink-faint hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action"
     >
       <svg
         width="16"
