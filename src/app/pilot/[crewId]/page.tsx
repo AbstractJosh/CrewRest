@@ -1,17 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
 import {
   formatDurationMinutes,
   formatTurkeyDateTime,
   formatTurkeyRange,
   formatUtcRange,
 } from "@/lib/time/turkeyTime";
-import { computeTravelWindow } from "@/lib/schedule/travelWindow";
+import {
+  buildPilotScheduleView,
+  type ScheduleDutyView,
+  type ScheduleWindowView,
+} from "@/lib/views/pilotScheduleView";
 import MinOffHoursControl from "./MinOffHoursControl";
 import TransferBufferControl from "./TransferBufferControl";
-import type { OffWindow, DutyPeriod } from "@/generated/prisma/client";
-import type { FlightLeg } from "@/lib/pdf/scheduleParser";
 
 const DUTY_TYPE_LABEL: Record<string, string> = {
   FLIGHT: "Flight duty",
@@ -25,10 +26,10 @@ function OffWindowCard({
   transferMinutes,
 }: {
   crewId: string;
-  window: OffWindow;
+  window: ScheduleWindowView;
   transferMinutes: number;
 }) {
-  const travel = computeTravelWindow(window, transferMinutes);
+  const { travel } = window;
   return (
     <li className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
       <div className="flex items-center justify-between gap-4">
@@ -48,7 +49,7 @@ function OffWindowCard({
             )}
           </p>
           <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
-            duty ends {formatTurkeyDateTime(window.startAt)} ·{" "}
+            duty ends {formatTurkeyDateTime(window.dutyEndsAt)} ·{" "}
             {formatDurationMinutes(transferMinutes)} to reach the station
           </p>
         </div>
@@ -63,9 +64,7 @@ function OffWindowCard({
   );
 }
 
-function DutyPeriodCard({ duty }: { duty: DutyPeriod }) {
-  const legs = (duty.flightLegs as unknown as FlightLeg[] | null) ?? [];
-
+function DutyPeriodCard({ duty }: { duty: ScheduleDutyView }) {
   return (
     <li className="rounded-md border border-zinc-100 px-4 py-3 text-sm dark:border-zinc-900">
       <p className="font-medium text-zinc-800 dark:text-zinc-200">
@@ -78,9 +77,9 @@ function DutyPeriodCard({ duty }: { duty: DutyPeriod }) {
         {DUTY_TYPE_LABEL[duty.type] ?? duty.type} · {duty.rawCode}
       </p>
 
-      {legs.length > 0 && (
+      {duty.flightLegs.length > 0 && (
         <ul className="mt-2 flex flex-col gap-1.5">
-          {legs.map((leg, i) => (
+          {duty.flightLegs.map((leg, i) => (
             <li key={i}>
               <span className="text-zinc-700 dark:text-zinc-300">
                 {leg.flightNumber} {leg.origin}/{leg.departureTime} →{" "}
@@ -104,39 +103,22 @@ export default async function PilotPage({
 }: PageProps<"/pilot/[crewId]">) {
   const { crewId } = await params;
 
-  const pilot = await prisma.pilot.findUnique({ where: { crewId } });
-  if (!pilot) notFound();
+  const view = await buildPilotScheduleView(crewId);
+  if (!view) notFound();
 
-  const schedule = await prisma.scheduleUpload.findFirst({
-    where: { pilotId: pilot.id },
-    orderBy: { uploadedAt: "desc" },
-    include: {
-      dutyPeriods: { orderBy: { sortIndex: "asc" } },
-      offWindows: { orderBy: { startAt: "asc" } },
-    },
-  });
-
-  // The threshold applies to time actually available for travelling, not the raw gap: a 20h
-  // gap with a 1h30 transfer at each end is not a 20h trip opportunity.
-  const minOffMinutes = pilot.minOffHours * 60;
-  const isWorthShowing = (w: OffWindow) => {
-    const travel = computeTravelWindow(w, pilot.airportTransferMinutes);
-    return travel.isViable && travel.minutes >= minOffMinutes;
-  };
-  const shownWindows = schedule?.offWindows.filter(isWorthShowing) ?? [];
-  const hiddenWindows = schedule?.offWindows.filter((w) => !isWorthShowing(w)) ?? [];
+  const { shownWindows, hiddenWindows } = view;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-12">
       <div className="flex items-baseline justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-            {pilot.name}
+            {view.name}
           </h1>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Crew ID {pilot.crewId}
-            {pilot.aircraftType ? ` · ${pilot.aircraftType}` : ""}
-            {schedule ? ` · ${schedule.period}` : ""}
+            Crew ID {view.crewId}
+            {view.aircraftType ? ` · ${view.aircraftType}` : ""}
+            {view.period ? ` · ${view.period}` : ""}
           </p>
         </div>
         <Link
@@ -147,7 +129,7 @@ export default async function PilotPage({
         </Link>
       </div>
 
-      {!schedule ? (
+      {!view.hasSchedule ? (
         <p className="mt-8 text-zinc-600 dark:text-zinc-400">
           No schedule uploaded yet.
         </p>
@@ -163,16 +145,16 @@ export default async function PilotPage({
             </p>
 
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <MinOffHoursControl crewId={crewId} initialMinOffHours={pilot.minOffHours} />
+              <MinOffHoursControl crewId={crewId} initialMinOffHours={view.minOffHours} />
               <TransferBufferControl
                 crewId={crewId}
-                initialMinutes={pilot.airportTransferMinutes}
+                initialMinutes={view.airportTransferMinutes}
               />
             </div>
 
             {shownWindows.length === 0 ? (
               <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
-                No off-periods meet your {pilot.minOffHours}h threshold this period.
+                No off-periods meet your {view.minOffHours}h threshold this period.
               </p>
             ) : (
               <ul className="mt-4 flex flex-col gap-3">
@@ -181,7 +163,7 @@ export default async function PilotPage({
                     key={window.id}
                     crewId={crewId}
                     window={window}
-                    transferMinutes={pilot.airportTransferMinutes}
+                    transferMinutes={view.airportTransferMinutes}
                   />
                 ))}
               </ul>
@@ -196,11 +178,11 @@ export default async function PilotPage({
                 <ul className="mt-3 flex flex-col gap-3">
                   {hiddenWindows.map((window) => (
                     <OffWindowCard
-                    key={window.id}
-                    crewId={crewId}
-                    window={window}
-                    transferMinutes={pilot.airportTransferMinutes}
-                  />
+                      key={window.id}
+                      crewId={crewId}
+                      window={window}
+                      transferMinutes={view.airportTransferMinutes}
+                    />
                   ))}
                 </ul>
               </details>
@@ -216,7 +198,7 @@ export default async function PilotPage({
               each station.
             </p>
             <ul className="mt-4 flex flex-col gap-2">
-              {schedule.dutyPeriods.map((duty) => (
+              {view.dutyPeriods.map((duty) => (
                 <DutyPeriodCard key={duty.id} duty={duty} />
               ))}
             </ul>

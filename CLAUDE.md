@@ -48,8 +48,16 @@ PDF → extractPdfText → parseSchedulePdf → computeOffWindows → [persisted
 ```
 
 - `POST /api/upload` (`src/app/api/upload/route.ts`) runs the left half and persists `Pilot` / `ScheduleUpload` / `DutyPeriod` / `OffWindow`.
-- `src/app/pilot/[crewId]/page.tsx` and `.../window/[windowId]/page.tsx` are server components that run the right half on every render.
+- `src/app/pilot/[crewId]/page.tsx` and `.../window/[windowId]/page.tsx` are server components that run the right half on every render. They hold no logic of their own: each awaits one builder from `src/lib/views/` and renders the result.
 - The three `PATCH`-style routes under `src/app/api/pilot/[crewId]/` only write per-pilot settings; they never recompute stored data (see "stored vs derived").
+
+### The view layer (`src/lib/views/`)
+
+Each page has a builder split in two: a pure `assemble*View` doing the filtering, choosing, serializing and commitment-matching, and an `async build*View` around it doing the Prisma queries and the timetable search. Nothing about that assembly is web-specific, so it is unit-tested directly instead of by rendering a page against a database, and a route handler could serve it as JSON to a client that isn't React.
+
+`SerializedTrainOption` — the `TrainOption` shape with ISO instants and a resolved booking URL — lives in `src/lib/trains/serialized.ts`, not beside the component that renders it. It is a contract: it crosses to the client *and* it is what `CommuteCommitment.outboundTrain`/`returnTrain` store.
+
+`src/lib/portability.test.ts` enforces the property all of this exists to protect: nothing under `src/lib` imports `next/*`, and nothing outside an explicit `SERVER_ONLY` allowlist imports Prisma. The intent is a second client (a native app talking to this server) staying cheap to add; that is only true while the core has no framework in it. When something genuinely belongs on the server, add it to `SERVER_ONLY` rather than relaxing the rule.
 
 ### Time handling — read `src/lib/time/turkeyTime.ts` before touching any date
 
