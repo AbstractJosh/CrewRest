@@ -40,9 +40,11 @@ export default function MinOffHoursControl({
       hint="How long a gap must be before it's worth suggesting a trip home."
     >
       {/*
-        Field only auto-wires aria-describedby when it gets a single control as its child; this
-        wraps two, so both wire it themselves, pointing at the same "min-off-hours-hint" id Field
-        derives from htmlFor="min-off-hours" above.
+        This wraps two controls in a <div>, and that div is what Field's cloneElement actually
+        reaches — it does fire (the div is one valid element), attaching aria-describedby to it,
+        but that's inert: a plain non-interactive div conveys nothing to a screen reader. The two
+        inputs below wire aria-describedby themselves, pointing at the same "min-off-hours-hint"
+        id Field derives from htmlFor="min-off-hours" above — that's what actually does the work.
       */}
       <div className="flex items-center gap-3">
         <input
@@ -60,17 +62,24 @@ export default function MinOffHoursControl({
           className="w-full accent-ink"
           disabled={isSaving}
         />
-        <TextInput
-          type="number"
-          min={1}
-          max={240}
-          value={value}
-          onChange={(e) => setValue(Number(e.target.value))}
-          onBlur={() => save(value)}
-          aria-describedby="min-off-hours-hint"
-          className="w-16 shrink-0"
-          disabled={isSaving}
-        />
+        {/*
+          TextInput's base class already carries w-full; a caller className of "w-16" collides at
+          equal specificity and loses to w-full on stylesheet order (see Button's className hazard
+          in CLAUDE.md — this is the same trap surfacing through TextInput). Sizing the wrapper
+          instead of fighting the input's own width class is the local, non-shared fix.
+        */}
+        <div className="w-16 shrink-0">
+          <TextInput
+            type="number"
+            min={1}
+            max={240}
+            value={value}
+            onChange={(e) => setValue(Number(e.target.value))}
+            onBlur={() => save(value)}
+            aria-describedby="min-off-hours-hint"
+            disabled={isSaving}
+          />
+        </div>
       </div>
     </Field>
   );
