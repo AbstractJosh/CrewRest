@@ -96,6 +96,26 @@ export interface OffWindowView {
   bookingReference: string;
 }
 
+/**
+ * The travel window and the "still resting" flag both derive from just the window and the
+ * pilot's transfer buffer — no train search involved. Shared so `buildOffWindowHeader` (no train
+ * search) and `assembleOffWindowView` (after one) compute these identically instead of drifting.
+ */
+function deriveTravelAndRest(
+  offWindow: { startAt: Date; endAt: Date },
+  airportTransferMinutes: number,
+  precedingRestEndsAt: Date | null,
+): { travel: TravelWindow; restEndsAt: Date | null } {
+  const travel = computeTravelWindow(offWindow, airportTransferMinutes);
+
+  const restEndsAt =
+    precedingRestEndsAt && precedingRestEndsAt.getTime() > offWindow.startAt.getTime()
+      ? precedingRestEndsAt
+      : null;
+
+  return { travel, restEndsAt };
+}
+
 export function assembleOffWindowView(input: OffWindowViewInput): OffWindowView {
   const { pilot, offWindow } = input;
 
@@ -104,13 +124,11 @@ export function assembleOffWindowView(input: OffWindowViewInput): OffWindowView 
   const commitment =
     input.commitment && input.commitment.cancelledAt === null ? input.commitment : null;
 
-  const travel = computeTravelWindow(offWindow, pilot.airportTransferMinutes);
-
-  const restEndsAt =
-    input.precedingRestEndsAt &&
-    input.precedingRestEndsAt.getTime() > offWindow.startAt.getTime()
-      ? input.precedingRestEndsAt
-      : null;
+  const { travel, restEndsAt } = deriveTravelAndRest(
+    offWindow,
+    pilot.airportTransferMinutes,
+    input.precedingRestEndsAt,
+  );
 
   // A train in the timetable isn't necessarily one you can get to: the feeder metro bounds
   // when you can board in Istanbul, and the return has to land early enough to still reach
@@ -165,6 +183,83 @@ export function assembleOffWindowView(input: OffWindowViewInput): OffWindowView 
 }
 
 /**
+ * `restEndsAt` of the duty preceding a window. OffWindow has no FK to it, but a window always
+ * starts at the preceding duty's release time, so the latest duty ending at or before the window
+ * start is it. Shared by both builders below — neither does a train search, so both are cheap.
+ */
+async function findPrecedingRestEndsAt(
+  scheduleId: string,
+  windowStartAt: Date,
+): Promise<Date | null> {
+  const precedingDuty = await prisma.dutyPeriod.findFirst({
+    where: {
+      scheduleId,
+      endAt: { lte: windowStartAt },
+    },
+    orderBy: { endAt: "desc" },
+  });
+  return precedingDuty?.restEndsAt ?? null;
+}
+
+/** What the page shell needs for its header and its two window-only callouts — the database half
+ * of the view, with no timetable search. `buildOffWindowView` below does that search and the rest
+ * of the assembly; this exists so the shell can paint before it, per CLAUDE.md's Suspense split.
+ */
+export interface OffWindowHeader {
+  crewId: string;
+  windowId: string;
+  travelEligible: boolean;
+  /** Duty release (MS) — the raw start of the gap, before the transfer buffer. */
+  dutyEndsAt: Date;
+  /** Next report time (MB). */
+  reportBackAt: Date;
+  travel: TravelWindow;
+  /** See `OffWindowView.restEndsAt` — same meaning, same derivation. */
+  restEndsAt: Date | null;
+  airportTransferMinutes: number;
+}
+
+/**
+ * Loads just enough to render the page shell: the window, the pilot's transfer buffer, and the
+ * preceding duty's rest end. No timetable search — safe to await directly in the page, unlike
+ * `buildOffWindowView`. Null when the window doesn't exist or belongs to another pilot.
+ */
+export async function buildOffWindowHeader(
+  crewId: string,
+  windowId: string,
+): Promise<OffWindowHeader | null> {
+  const offWindow = await prisma.offWindow.findUnique({
+    where: { id: windowId },
+    include: { schedule: { include: { pilot: true } } },
+  });
+  if (!offWindow || offWindow.schedule.pilot.crewId !== crewId) return null;
+
+  const pilot = offWindow.schedule.pilot;
+
+  const precedingRestEndsAt = await findPrecedingRestEndsAt(
+    offWindow.scheduleId,
+    offWindow.startAt,
+  );
+
+  const { travel, restEndsAt } = deriveTravelAndRest(
+    offWindow,
+    pilot.airportTransferMinutes,
+    precedingRestEndsAt,
+  );
+
+  return {
+    crewId: pilot.crewId,
+    windowId,
+    travelEligible: offWindow.travelEligible,
+    dutyEndsAt: offWindow.startAt,
+    reportBackAt: offWindow.endAt,
+    travel,
+    restEndsAt,
+    airportTransferMinutes: pilot.airportTransferMinutes,
+  };
+}
+
+/**
  * Loads and assembles the view. Null when the window doesn't exist or belongs to another pilot —
  * the caller decides whether that is a 404 or a JSON error.
  */
@@ -180,16 +275,13 @@ export async function buildOffWindowView(
 
   const pilot = offWindow.schedule.pilot;
 
-  // The duty this window follows. OffWindow has no FK to it, but a window always starts at the
-  // preceding duty's release time, so the latest duty ending at or before the window start is it.
-  const precedingDuty = await prisma.dutyPeriod.findFirst({
-    where: {
-      scheduleId: offWindow.scheduleId,
-      endAt: { lte: offWindow.startAt },
-    },
-    orderBy: { endAt: "desc" },
-  });
+  const precedingRestEndsAt = await findPrecedingRestEndsAt(
+    offWindow.scheduleId,
+    offWindow.startAt,
+  );
 
+  // Only the search bounds are needed here; `assembleOffWindowView` below derives the travel
+  // window (and restEndsAt) again from the same inputs for the returned view.
   const travel = computeTravelWindow(offWindow, pilot.airportTransferMinutes);
 
   let outboundCandidates: TrainOption[] = [];
@@ -219,7 +311,7 @@ export async function buildOffWindowView(
     windowId,
     pilot,
     offWindow,
-    precedingRestEndsAt: precedingDuty?.restEndsAt ?? null,
+    precedingRestEndsAt,
     commitment: offWindow.commitment
       ? {
           // Unchecked casts, as everywhere these JSON columns are read — see CLAUDE.md.
