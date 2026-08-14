@@ -2,90 +2,18 @@
 
 import { useMemo, useState } from "react";
 import { evaluateCommuteFeasibility } from "@/lib/trains/commuteFeasibility";
-import { formatDurationMinutes, formatTurkeyRange } from "@/lib/time/turkeyTime";
+import { formatDurationMinutes } from "@/lib/time/turkeyTime";
 import { toDatedTrainOption } from "@/lib/trains/serialized";
-import type { TrainFare } from "@/lib/trains/TrainProvider";
 import type { SerializedTrainOption } from "@/lib/trains/serialized";
+import { Ticket, TicketBody, Perforation, TicketStub } from "@/components/ui/Ticket";
+import { Stamp } from "@/components/ui/Stamp";
+import { Button } from "@/components/ui/Button";
+import { Callout } from "@/components/ui/Callout";
+import { Field, TextInput } from "@/components/ui/Field";
+import SourceNote from "@/components/domain/SourceNote";
+import TrainPicker from "@/components/domain/TrainPicker";
 
 export type { SerializedTrainOption };
-
-function cheapestFare(option: SerializedTrainOption): TrainFare | null {
-  if (!option.fares || option.fares.length === 0) return null;
-  return option.fares.reduce((cheapest, fare) =>
-    fare.priceMinor < cheapest.priceMinor ? fare : cheapest,
-  );
-}
-
-/** Exact to the kuruş — rounding a ₺450,50 fare to ₺451 misstates what the ticket costs. */
-function formatPrice(fare: TrainFare): string {
-  return new Intl.NumberFormat("tr-TR", {
-    style: "currency",
-    currency: fare.currency,
-  }).format(fare.priceMinor / 100);
-}
-
-/**
- * One `<option>` label. Price and seats-left only appear when the provider supplied them, so the
- * same component renders live data and curated estimates without branching on the source.
- */
-function optionLabel(option: SerializedTrainOption): string {
-  const parts = [
-    formatTurkeyRange(new Date(option.departureAt), new Date(option.arrivalAt)),
-    `(${formatDurationMinutes(option.durationMinutes)})`,
-  ];
-
-  const fare = cheapestFare(option);
-  if (fare) parts.push(`· ${formatPrice(fare)}`);
-
-  if (option.availableSeats !== undefined && option.availableSeats <= 10) {
-    parts.push(`· ${option.availableSeats} seats left`);
-  }
-
-  return parts.join(" ");
-}
-
-function TrainSelect({
-  label,
-  options,
-  selectedIndex,
-  onSelect,
-}: {
-  label: React.ReactNode;
-  options: SerializedTrainOption[];
-  selectedIndex: number;
-  onSelect: (index: number) => void;
-}) {
-  const selected = options[selectedIndex];
-
-  return (
-    <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-      <label className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{label}</span>
-        <select
-          value={selectedIndex}
-          onChange={(e) => onSelect(Number(e.target.value))}
-          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-        >
-          {options.map((option, index) => (
-            <option key={option.trainNumber + option.departureAt} value={index}>
-              {optionLabel(option)}
-            </option>
-          ))}
-        </select>
-      </label>
-      {selected && (
-        <a
-          href={selected.bookingUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="self-start text-sm font-medium text-zinc-600 underline underline-offset-4 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-50"
-        >
-          Buy on TCDD ↗
-        </a>
-      )}
-    </div>
-  );
-}
 
 export default function TripPlanner({
   windowId,
@@ -173,109 +101,112 @@ export default function TripPlanner({
 
   if (outboundOptions.length === 0 || returnOptions.length === 0) {
     return (
-      <p className="mt-6 rounded-lg border border-zinc-200 bg-white p-5 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
-        No {outboundOptions.length === 0 ? "outbound" : "return"} trains to{" "}
-        {homeCity} fit inside this off-window.
-      </p>
+      <div className="mt-6">
+        <Callout tone="warn">
+          No {outboundOptions.length === 0 ? "outbound" : "return"} trains to {homeCity} fit inside
+          this off-window.
+        </Callout>
+      </div>
     );
   }
 
   return (
     <div className="mt-6 flex flex-col gap-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <TrainSelect
-          label={
-            <>
-              Outbound to {homeCity}{" "}
-              <span className="font-normal text-zinc-500 dark:text-zinc-400">(local time)</span>
-            </>
-          }
-          options={outboundOptions}
-          selectedIndex={outboundIndex}
-          onSelect={setOutboundIndex}
-        />
+      <Ticket>
+        <TicketBody className="flex flex-col gap-5">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <TrainPicker
+              label={
+                <>
+                  Outbound to {homeCity}{" "}
+                  <span className="font-normal text-ink-muted">(local time)</span>
+                </>
+              }
+              options={outboundOptions}
+              selectedIndex={outboundIndex}
+              onSelect={setOutboundIndex}
+            />
+            <TrainPicker
+              label={
+                <>
+                  Return to Istanbul{" "}
+                  <span className="font-normal text-ink-muted">(local time)</span>
+                </>
+              }
+              options={returnOptions}
+              selectedIndex={returnIndex}
+              onSelect={setReturnIndex}
+            />
+          </div>
 
-        <TrainSelect
-          label={
-            <>
-              Return to Istanbul{" "}
-              <span className="font-normal text-zinc-500 dark:text-zinc-400">(local time)</span>
-            </>
-          }
-          options={returnOptions}
-          selectedIndex={returnIndex}
-          onSelect={setReturnIndex}
-        />
-      </div>
+          <Field
+            label={
+              <>
+                PNR / booking reference{" "}
+                <span className="font-normal text-ink-muted">
+                  (optional — paste it back once you&apos;ve bought on TCDD)
+                </span>
+              </>
+            }
+          >
+            <TextInput
+              value={bookingReference}
+              onChange={(e) => setBookingReference(e.target.value)}
+              placeholder="e.g. 1234567890"
+              className="max-w-xs font-mono"
+            />
+          </Field>
+        </TicketBody>
 
-      {feasibility && (
-        <div
-          className={`rounded-lg border p-4 text-sm ${
-            feasibility.isFeasible
-              ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40"
-              : "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/40"
-          }`}
-        >
-          <p className="font-medium text-zinc-900 dark:text-zinc-100">
-            Time at home: {formatDurationMinutes(feasibility.netTimeAtHomeMinutes)}
-          </p>
-          <p className="mt-1 text-zinc-600 dark:text-zinc-400">
-            {formatDurationMinutes(feasibility.bufferBeforeOutboundMinutes)} waiting before
-            the outbound departs ·{" "}
-            {formatDurationMinutes(feasibility.bufferAfterReturnMinutes)} to spare on the
-            way back
-          </p>
-          {feasibility.warnings.length > 0 && (
-            <ul className="mt-2 list-disc pl-5 text-amber-700 dark:text-amber-400">
-              {feasibility.warnings.map((w) => (
-                <li key={w}>{w}</li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <Perforation />
+
+        {feasibility && (
+          <TicketStub className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="font-mono text-[0.65rem] uppercase tracking-[0.12em] text-ink-faint">
+                Time at home
+              </p>
+              <p className="font-mono text-xl tabular-nums text-ink">
+                {formatDurationMinutes(feasibility.netTimeAtHomeMinutes)}
+              </p>
+              <p className="mt-1 text-xs text-ink-muted">
+                {formatDurationMinutes(feasibility.bufferBeforeOutboundMinutes)} waiting before the
+                outbound departs · {formatDurationMinutes(feasibility.bufferAfterReturnMinutes)} to
+                spare on the way back
+              </p>
+            </div>
+            <Stamp tone={feasibility.isFeasible ? "ok" : "danger"}>
+              {feasibility.isFeasible ? "Fits" : "Does not fit"}
+            </Stamp>
+          </TicketStub>
+        )}
+      </Ticket>
+
+      {feasibility && feasibility.warnings.length > 0 && (
+        <Callout tone="warn">
+          <ul className="list-disc pl-5">
+            {feasibility.warnings.map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
+        </Callout>
       )}
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <Callout tone="danger">{error}</Callout>}
 
-      <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-          PNR / booking reference{" "}
-          <span className="font-normal text-zinc-500 dark:text-zinc-400">
-            (optional — paste it back once you&apos;ve bought on TCDD)
-          </span>
-        </span>
-        <input
-          value={bookingReference}
-          onChange={(e) => setBookingReference(e.target.value)}
-          placeholder="e.g. 1234567890"
-          className="max-w-xs rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-        />
-      </label>
+      <Button onClick={handleCommit} disabled={isSaving || !feasibility?.isFeasible} className="self-start">
+        {committed ? "Update commitment" : isSaving ? "Saving…" : "Commit to this commute"}
+      </Button>
 
-      <button
-        onClick={handleCommit}
-        disabled={isSaving || !feasibility?.isFeasible}
-        className="self-start rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
-      >
-        {committed
-          ? "Update commitment"
-          : isSaving
-            ? "Saving..."
-            : "Commit to this commute"}
-      </button>
       {committed && (
-        <p className="text-sm text-emerald-700 dark:text-emerald-400">
+        <p className="text-sm text-ok">
           {bookingReference.trim()
             ? `Ticketed — booking reference ${bookingReference.trim()}.`
             : "You're committed to this trip — buy the tickets on TCDD to lock it in."}
         </p>
       )}
 
-      <p className="text-xs text-zinc-500 dark:text-zinc-500">
-        {hasEstimates
-          ? "Some times shown are approximate planning estimates, not a live feed — confirm exact times and book on ebilet.tcddtasimacilik.gov.tr."
-          : "Live TCDD times and fares. Seat availability can change between loading this page and paying."}
-      </p>
+      <SourceNote hasEstimates={hasEstimates} />
     </div>
   );
 }
