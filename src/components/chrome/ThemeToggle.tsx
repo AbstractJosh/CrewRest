@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { FOCUS_RING } from "@/components/ui/focusRing";
 
 export type Theme = "auto" | "light" | "dark";
 
@@ -70,7 +71,7 @@ export default function ThemeToggle() {
       onClick={cycle}
       aria-label={`Theme: ${shown}. Click to change.`}
       title={`Theme: ${shown}`}
-      className="rounded-md border border-rule p-1.5 text-ink-muted outline-none transition-colors hover:border-ink-faint hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action"
+      className={`rounded-md border border-rule p-1.5 text-ink-muted outline-none transition-colors hover:border-ink-faint hover:text-ink ${FOCUS_RING}`}
     >
       <svg
         width="16"

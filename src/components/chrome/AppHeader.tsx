@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { FOCUS_RING } from "@/components/ui/focusRing";
 import ThemeToggle from "./ThemeToggle";
 
 /**
@@ -20,7 +21,7 @@ function NavLink({ href, active, children }: { href: string; active: boolean; ch
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      className={`rounded-sm text-sm outline-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action ${
+      className={`rounded-sm text-sm outline-none transition-colors ${FOCUS_RING} ${
         active ? "font-medium text-ink" : "text-ink-muted hover:text-ink"
       }`}
     >
@@ -38,7 +39,7 @@ export default function AppHeader() {
       <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center gap-6 px-6 py-3">
         <Link
           href="/"
-          className="rounded-sm font-mono text-sm font-semibold uppercase tracking-[0.18em] text-ink outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action"
+          className={`rounded-sm font-mono text-sm font-semibold uppercase tracking-[0.18em] text-ink outline-none ${FOCUS_RING}`}
         >
           CrewRest
         </Link>

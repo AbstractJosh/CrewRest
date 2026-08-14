@@ -1,9 +1,10 @@
 import { cloneElement, isValidElement, type ComponentProps, type ReactElement } from "react";
+import { FOCUS_RING } from "./focusRing";
 
 /** Shared by every control so they stay visually identical. */
 const CONTROL =
   "w-full rounded-md border border-rule bg-card px-3 py-2 text-sm text-ink " +
-  "placeholder:text-ink-faint focus:border-ink-muted focus:outline-none";
+  `placeholder:text-ink-faint outline-none focus:border-ink-muted ${FOCUS_RING}`;
 
 /**
  * Attaches `describedBy` to a single control element, preserving any `aria-describedby` the

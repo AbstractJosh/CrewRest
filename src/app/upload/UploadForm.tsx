@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Callout } from "@/components/ui/Callout";
+import { FOCUS_RING } from "@/components/ui/focusRing";
 
 function formatSize(bytes: number): string {
   return bytes < 1024 * 1024
@@ -80,7 +81,7 @@ export default function UploadForm() {
         role="button"
         tabIndex={0}
         aria-label="Choose a roster PDF to upload"
-        className={`cursor-pointer rounded-xl border border-dashed px-5 py-10 text-center transition-colors outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action ${
+        className={`cursor-pointer rounded-xl border border-dashed px-5 py-10 text-center transition-colors outline-none ${FOCUS_RING} ${
           isDragging ? "border-ink-faint bg-sunken" : "border-perf bg-card"
         }`}
       >
