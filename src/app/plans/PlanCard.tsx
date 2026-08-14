@@ -74,7 +74,7 @@ export default function PlanCard({
   }
 
   return (
-    <Ticket as="li" muted={plan.isCancelled}>
+    <Ticket as="li" muted={plan.isCancelled} accent={plan.isCancelled ? "dropped" : "committed"}>
       <TicketBody className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">

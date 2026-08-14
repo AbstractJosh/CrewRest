@@ -10,7 +10,6 @@ import {
   type ScheduleDutyView,
   type ScheduleWindowView,
 } from "@/lib/views/pilotScheduleView";
-import { buildTimeline } from "@/lib/views/timelineLayout";
 import PageShell from "@/components/chrome/PageShell";
 import PageHeader from "@/components/chrome/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -18,7 +17,6 @@ import { ButtonLink } from "@/components/ui/Button";
 import { Ticket, TicketBody, Perforation, TicketStub } from "@/components/ui/Ticket";
 import { Stamp } from "@/components/ui/Stamp";
 import TimeStack from "@/components/domain/TimeStack";
-import ScheduleTimeline from "@/components/domain/ScheduleTimeline";
 import MinOffHoursControl from "./MinOffHoursControl";
 import TransferBufferControl from "./TransferBufferControl";
 
@@ -37,13 +35,17 @@ function OffWindowTicket({
   window: ScheduleWindowView;
   transferMinutes: number;
 }) {
-  const { travel } = window;
+  const { travel, planState } = window;
   return (
-    <Ticket as="li">
+    <Ticket as="li" accent={planState} muted={planState === "dropped"}>
       <TicketBody className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-4">
           <TimeStack at={travel.startAt} to={travel.endAt} />
-          {!window.travelEligible && <Stamp tone="warn">Adjacent to standby</Stamp>}
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            {planState === "committed" && <Stamp tone="ok">Committed</Stamp>}
+            {planState === "dropped" && <Stamp tone="neutral">Cancelled</Stamp>}
+            {!window.travelEligible && <Stamp tone="warn">Adjacent to standby</Stamp>}
+          </div>
         </div>
         <p className="font-mono text-sm text-ink-muted">
           {formatDurationMinutes(travel.minutes)} to travel
@@ -56,7 +58,7 @@ function OffWindowTicket({
           {formatDurationMinutes(transferMinutes)} to reach the station
         </p>
         <ButtonLink href={`/pilot/${crewId}/window/${window.id}`} size="sm">
-          Plan trip
+          {planState === "committed" ? "Open plan" : planState === "dropped" ? "Plan again" : "Plan trip"}
         </ButtonLink>
       </TicketStub>
     </Ticket>
@@ -109,23 +111,6 @@ export default async function PilotPage({
 
   const { shownWindows, hiddenWindows } = view;
 
-  const timelineDays = buildTimeline({
-    duties: view.dutyPeriods.map((duty) => ({
-      id: duty.id,
-      startAt: duty.startAt,
-      endAt: duty.endAt,
-      type: duty.type,
-      label: duty.rawCode,
-    })),
-    windows: shownWindows.map((window) => ({
-      id: window.id,
-      startAt: window.travel.startAt,
-      endAt: window.travel.endAt,
-      label: formatDurationMinutes(window.travel.minutes),
-      href: `/pilot/${crewId}/window/${window.id}`,
-    })),
-  });
-
   return (
     <PageShell>
       <PageHeader
@@ -141,15 +126,6 @@ export default async function PilotPage({
         </div>
       ) : (
         <>
-          <section className="mt-10">
-            <h2 className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-ink-muted">
-              This period
-            </h2>
-            <div className="mt-4">
-              <ScheduleTimeline days={timelineDays} />
-            </div>
-          </section>
-
           <section className="mt-10">
             <h2 className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-ink-muted">
               Commute opportunities

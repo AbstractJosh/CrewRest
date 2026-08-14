@@ -8,8 +8,13 @@ import ThemeToggle from "./ThemeToggle";
 /**
  * The crew ID is read from the URL rather than passed down. CrewRest has no session and no user
  * concept, so there is nothing to remember — but on a /pilot/... route the ID is right there, and
- * reading it is what lets "Schedule" appear without inventing an identity or drilling a prop
- * through every page.
+ * reading it is what lets "Schedule" link straight to the right pilot without inventing an
+ * identity or drilling a prop through every page.
+ *
+ * Off those routes there is no ID to read, which is why "Schedule" falls back to /schedule — a
+ * server route that looks up the most recent upload and redirects. Linking there unconditionally
+ * would be simpler but wrong: with two rosters uploaded it could bounce a pilot viewing their own
+ * schedule over to someone else's.
  */
 function crewIdFromPath(pathname: string): string | null {
   const match = /^\/pilot\/([^/]+)/.exec(pathname);
@@ -44,11 +49,10 @@ export default function AppHeader() {
           CrewRest
         </Link>
         <nav className="flex flex-1 items-center gap-5">
-          {crewId && (
-            <NavLink href={`/pilot/${crewId}`} active={pathname === `/pilot/${crewId}`}>
-              Schedule
-            </NavLink>
-          )}
+          {/* Active on the trip planner too — it is reached through the schedule and sits under it. */}
+          <NavLink href={crewId ? `/pilot/${crewId}` : "/schedule"} active={pathname.startsWith("/pilot/")}>
+            Schedule
+          </NavLink>
           <NavLink href="/plans" active={pathname.startsWith("/plans")}>
             Plans
           </NavLink>

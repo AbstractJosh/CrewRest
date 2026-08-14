@@ -1,16 +1,14 @@
 @import "tailwindcss";
 
 /*
- * Tailwind's built-in `dark:` keys off prefers-color-scheme alone, which desynchronises from the
- * tokens below in BOTH directions once a manual override exists: in auto-on-a-dark-OS the tokens
- * go dark but `dark:` never fires, and with light forced on a dark OS the tokens go light while
- * `dark:` still fires. These two rules are the same two rules as the media query and the attribute
- * selector below — EDIT THEM TOGETHER.
+ * Theme is the pilot's explicit choice, never the OS's. There is no "auto": the app is a printed
+ * ticket on warm paper, and that is what it opens as. Dark is opt-in and remembered.
+ *
+ * So `data-theme="dark"` is the single switch, and Tailwind's built-in `dark:` — which keys off
+ * prefers-color-scheme — has to be redefined to match it. Leaving it alone would let a utility
+ * fire on a dark-OS machine while every token below stayed light.
  */
 @custom-variant dark {
-  @media (prefers-color-scheme: dark) {
-    &:where(:not([data-theme="light"]) *) { @slot; }
-  }
   &:where([data-theme="dark"] *) { @slot; }
 }
 
@@ -32,34 +30,25 @@
   --warn-bg: #fbf1de;
   --danger: #9b2c2c;
   --danger-bg: #fbeaea;
+  /*
+   * The spine down a ticket's left edge, which is what tells the three card states apart at a
+   * glance: an untaken commute opportunity, a plan committed to, a plan cancelled. Deliberately
+   * softer than --danger/--ok — a red opportunity card is an invitation, not a warning, so it must
+   * not read in the same register as an error. These are painted as a wide solid band, so they are
+   * pitched lighter than a hairline rule of the same intent would be; at 32px, --danger's weight
+   * would be the loudest thing on the page.
+   */
+  --accent-open: #e8a79f;
+  --accent-committed: #a3cbb2;
+  /* Darker than it looks like it should be: a dropped ticket is also `muted`, so this band sits on
+   * --sunken rather than --card and a lighter grey washes out against it entirely. */
+  --accent-dropped: #bdb8ae;
 }
 
 /*
- * Dark is not light inverted — it is ink on a dark card. The two blocks below are duplicated on
- * purpose: CSS cannot share one declaration block between a media query and an attribute
- * selector. KEEP THEM IDENTICAL.
+ * Dark is not light inverted — it is ink on a dark card. One block, reached only by the pilot
+ * explicitly asking for it; there is deliberately no prefers-color-scheme copy to keep in sync.
  */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --paper: #0f0f0e;
-    --card: #1a1a18;
-    --sunken: #141413;
-    --ink: #f2f0eb;
-    --ink-muted: #a3a09a;
-    --ink-faint: #6e6b65;
-    --rule: #2e2d2a;
-    --perf: #3d3b37;
-    --action: #f2f0eb;
-    --action-ink: #1a1a18;
-    --ok: #7fcfa4;
-    --ok-bg: #14291f;
-    --warn: #e8b96a;
-    --warn-bg: #2b2216;
-    --danger: #f08a8a;
-    --danger-bg: #2e1919;
-  }
-}
-
 :root[data-theme="dark"] {
   --paper: #0f0f0e;
   --card: #1a1a18;
@@ -77,6 +66,9 @@
   --warn-bg: #2b2216;
   --danger: #f08a8a;
   --danger-bg: #2e1919;
+  --accent-open: #9e5f5a;
+  --accent-committed: #4f8168;
+  --accent-dropped: #4d4a45;
 }
 
 @theme inline {
@@ -96,6 +88,9 @@
   --color-warn-bg: var(--warn-bg);
   --color-danger: var(--danger);
   --color-danger-bg: var(--danger-bg);
+  --color-accent-open: var(--accent-open);
+  --color-accent-committed: var(--accent-committed);
+  --color-accent-dropped: var(--accent-dropped);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

@@ -3,25 +3,19 @@
 import { useEffect, useState } from "react";
 import { FOCUS_RING } from "@/components/ui/focusRing";
 
-export type Theme = "auto" | "light" | "dark";
+/**
+ * Two states, not three. The OS preference is deliberately not consulted: CrewRest opens as light
+ * ticket stock for everyone, and dark is a choice the pilot makes and the browser remembers.
+ */
+export type Theme = "light" | "dark";
 
 const STORAGE_KEY = "crewrest-theme";
-const ORDER: Theme[] = ["auto", "light", "dark"];
 
-/** "auto" removes the attribute, which is what hands control back to the media query. */
 function applyTheme(theme: Theme) {
-  const root = document.documentElement;
-  if (theme === "auto") root.removeAttribute("data-theme");
-  else root.setAttribute("data-theme", theme);
+  document.documentElement.setAttribute("data-theme", theme);
 }
 
 const ICONS: Record<Theme, React.ReactNode> = {
-  auto: (
-    <>
-      <circle cx="8" cy="8" r="6" />
-      <path d="M8 2a6 6 0 000 12z" fill="currentColor" stroke="none" />
-    </>
-  ),
   light: (
     <>
       <circle cx="8" cy="8" r="3.2" />
@@ -32,8 +26,8 @@ const ICONS: Record<Theme, React.ReactNode> = {
 };
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("auto");
-  // The server cannot know the stored choice, so render the "auto" affordance until mounted —
+  const [theme, setTheme] = useState<Theme>("light");
+  // The server cannot know the stored choice, so render the light affordance until mounted —
   // otherwise the first client render disagrees with the HTML and React warns.
   const [mounted, setMounted] = useState(false);
 
@@ -44,33 +38,31 @@ export default function ThemeToggle() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored === "light" || stored === "dark") setTheme(stored);
+      if (localStorage.getItem(STORAGE_KEY) === "dark") setTheme("dark");
     } catch {
-      // localStorage throws outright in some privacy modes; auto is a fine fallback.
+      // localStorage throws outright in some privacy modes; light is the default anyway.
     }
   }, []);
 
-  function cycle() {
-    const next = ORDER[(ORDER.indexOf(theme) + 1) % ORDER.length];
+  const shown = mounted ? theme : "light";
+  const next: Theme = shown === "dark" ? "light" : "dark";
+
+  function toggle() {
     setTheme(next);
     applyTheme(next);
     try {
-      if (next === "auto") localStorage.removeItem(STORAGE_KEY);
-      else localStorage.setItem(STORAGE_KEY, next);
+      localStorage.setItem(STORAGE_KEY, next);
     } catch {
       // Preference simply won't persist. The applied theme still took effect.
     }
   }
 
-  const shown = mounted ? theme : "auto";
-
   return (
     <button
       type="button"
-      onClick={cycle}
-      aria-label={`Theme: ${shown}. Click to change.`}
-      title={`Theme: ${shown}`}
+      onClick={toggle}
+      aria-label={`Theme: ${shown}. Switch to ${next}.`}
+      title={`Switch to ${next} theme`}
       className={`rounded-md border border-rule p-1.5 text-ink-muted outline-none transition-colors hover:border-ink-faint hover:text-ink ${FOCUS_RING}`}
     >
       <svg

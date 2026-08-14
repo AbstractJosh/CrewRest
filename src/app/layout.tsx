@@ -19,14 +19,16 @@ export const metadata: Metadata = {
 };
 
 /*
- * Must run before first paint, or every load flashes the wrong theme. A plain <script> rather
- * than next/script because this needs to be synchronous and inline. The try/catch is load-bearing:
- * localStorage throws outright in some privacy modes, and an uncaught throw here would take the
- * whole document down.
+ * Must run before first paint, or a pilot who chose dark gets a flash of light paper on every
+ * load. Only dark is applied: light is what the stylesheet already is, so there is nothing to set.
+ *
+ * A plain <script> rather than next/script because this needs to be synchronous and inline. The
+ * try/catch is load-bearing: localStorage throws outright in some privacy modes, and an uncaught
+ * throw here would take the whole document down.
  */
 const THEME_SCRIPT =
-  "try{var t=localStorage.getItem('crewrest-theme');" +
-  "if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}";
+  "try{if(localStorage.getItem('crewrest-theme')==='dark')" +
+  "document.documentElement.setAttribute('data-theme','dark')}catch(e){}";
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
