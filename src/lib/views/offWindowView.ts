@@ -183,6 +183,18 @@ export function assembleOffWindowView(input: OffWindowViewInput): OffWindowView 
 }
 
 /**
+ * A window belongs to a pilot only through its schedule. Shared by both builders deliberately:
+ * this is an authorisation check, and two copies could silently diverge into one builder
+ * authorising what the other rejects.
+ */
+function isOwnedBy<T extends { schedule: { pilot: { crewId: string } } }>(
+  offWindow: T | null,
+  crewId: string,
+): offWindow is T {
+  return offWindow !== null && offWindow.schedule.pilot.crewId === crewId;
+}
+
+/**
  * `restEndsAt` of the duty preceding a window. OffWindow has no FK to it, but a window always
  * starts at the preceding duty's release time, so the latest duty ending at or before the window
  * start is it. Shared by both builders below — neither does a train search, so both are cheap.
@@ -232,7 +244,7 @@ export async function buildOffWindowHeader(
     where: { id: windowId },
     include: { schedule: { include: { pilot: true } } },
   });
-  if (!offWindow || offWindow.schedule.pilot.crewId !== crewId) return null;
+  if (!isOwnedBy(offWindow, crewId)) return null;
 
   const pilot = offWindow.schedule.pilot;
 
@@ -271,7 +283,7 @@ export async function buildOffWindowView(
     where: { id: windowId },
     include: { schedule: { include: { pilot: true } }, commitment: true },
   });
-  if (!offWindow || offWindow.schedule.pilot.crewId !== crewId) return null;
+  if (!isOwnedBy(offWindow, crewId)) return null;
 
   const pilot = offWindow.schedule.pilot;
 
