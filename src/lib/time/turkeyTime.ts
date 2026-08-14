@@ -110,3 +110,19 @@ export function formatDurationMinutes(totalMinutes: number): string {
   const minutes = abs % 60;
   return minutes === 0 ? `${sign}${hours}h` : `${sign}${hours}h ${minutes}m`;
 }
+
+/**
+ * Midnight Türkiye-local, as a UTC instant, for the day the given instant falls on.
+ *
+ * Shifts into UTC first rather than reading local components — the server's zone is not Istanbul,
+ * so `getFullYear()` and friends would silently derive the wrong day.
+ */
+export function turkeyMidnight(date: Date): Date {
+  const shifted = new Date(date.getTime() + TURKEY_UTC_OFFSET_MINUTES * 60_000);
+  const midnightShiftedMs = Date.UTC(
+    shifted.getUTCFullYear(),
+    shifted.getUTCMonth(),
+    shifted.getUTCDate(),
+  );
+  return new Date(midnightShiftedMs - TURKEY_UTC_OFFSET_MINUTES * 60_000);
+}

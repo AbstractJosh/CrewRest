@@ -19,13 +19,19 @@ const PILOT: PilotScheduleViewPilot = {
 };
 
 /** An off-window `hours` long, starting at midday on the given August day. */
-function gap(id: string, day: number, hours: number) {
+function gap(
+  id: string,
+  day: number,
+  hours: number,
+  commitment: { cancelledAt: Date | null } | null = null,
+) {
   const startAt = buildTurkeyDate(2026, 7, day, 12, 0);
   return {
     id,
     startAt,
     endAt: new Date(startAt.getTime() + hours * 3_600_000),
     travelEligible: true,
+    commitment,
   };
 }
 
@@ -121,6 +127,53 @@ describe("assemblePilotScheduleView", () => {
 
       assert.deepEqual(strict.shownWindows.map((w) => w.id), ["b"]);
       assert.deepEqual(relaxed.shownWindows.map((w) => w.id), ["a", "b"]);
+    });
+  });
+
+  describe("plan state", () => {
+    it("separates never-planned, planned and dropped windows", () => {
+      // The distinction that matters: a cancelled commitment keeps its row (see CLAUDE.md), so
+      // testing for the row's existence alone would paint a dropped trip as a live plan.
+      const view = assemblePilotScheduleView(
+        makeInput({
+          pilot: { ...PILOT, minOffHours: 1 },
+          schedule: {
+            period: "AUG 2026",
+            dutyPeriods: [],
+            offWindows: [
+              gap("untouched", 5, 30),
+              gap("live", 10, 30, { cancelledAt: null }),
+              gap("dropped", 15, 30, { cancelledAt: buildTurkeyDate(2026, 7, 14, 9, 0) }),
+            ],
+          },
+        }),
+      );
+
+      assert.deepEqual(
+        view.shownWindows.map((w) => [w.id, w.planState]),
+        [
+          ["untouched", "open"],
+          ["live", "committed"],
+          ["dropped", "dropped"],
+        ],
+      );
+    });
+
+    it("still reports plan state for a window below the threshold", () => {
+      // Hidden windows render with the same ticket, so leaving planState off them would show a
+      // committed short break as though nothing had been planned for it.
+      const view = assemblePilotScheduleView(
+        makeInput({
+          schedule: {
+            period: "AUG 2026",
+            dutyPeriods: [],
+            offWindows: [gap("short", 10, 5, { cancelledAt: null })],
+          },
+        }),
+      );
+
+      assert.deepEqual(view.shownWindows, []);
+      assert.equal(view.hiddenWindows[0].planState, "committed");
     });
   });
 

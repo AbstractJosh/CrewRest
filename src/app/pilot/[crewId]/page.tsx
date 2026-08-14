@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   formatDurationMinutes,
@@ -11,6 +10,13 @@ import {
   type ScheduleDutyView,
   type ScheduleWindowView,
 } from "@/lib/views/pilotScheduleView";
+import PageShell from "@/components/chrome/PageShell";
+import PageHeader from "@/components/chrome/PageHeader";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ButtonLink } from "@/components/ui/Button";
+import { Ticket, TicketBody, Perforation, TicketStub } from "@/components/ui/Ticket";
+import { Stamp } from "@/components/ui/Stamp";
+import TimeStack from "@/components/domain/TimeStack";
 import MinOffHoursControl from "./MinOffHoursControl";
 import TransferBufferControl from "./TransferBufferControl";
 
@@ -20,7 +26,7 @@ const DUTY_TYPE_LABEL: Record<string, string> = {
   DAYOFF: "Day off",
 };
 
-function OffWindowCard({
+function OffWindowTicket({
   crewId,
   window,
   transferMinutes,
@@ -29,65 +35,62 @@ function OffWindowCard({
   window: ScheduleWindowView;
   transferMinutes: number;
 }) {
-  const { travel } = window;
+  const { travel, planState } = window;
   return (
-    <li className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="font-medium text-zinc-900 dark:text-zinc-100">
-            {formatTurkeyRange(travel.startAt, travel.endAt)}
-          </p>
-          <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
-            {formatUtcRange(travel.startAt, travel.endAt)} GMT
-          </p>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            {formatDurationMinutes(travel.minutes)} to travel
-            {!window.travelEligible && (
-              <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                adjacent to standby
-              </span>
-            )}
-          </p>
-          <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
-            duty ends {formatTurkeyDateTime(window.dutyEndsAt)} ·{" "}
-            {formatDurationMinutes(transferMinutes)} to reach the station
-          </p>
+    <Ticket as="li" accent={planState} muted={planState === "dropped"}>
+      <TicketBody className="flex flex-col gap-3">
+        <div className="flex items-start justify-between gap-4">
+          <TimeStack at={travel.startAt} to={travel.endAt} />
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            {planState === "committed" && <Stamp tone="ok">Committed</Stamp>}
+            {planState === "dropped" && <Stamp tone="neutral">Cancelled</Stamp>}
+            {!window.travelEligible && <Stamp tone="warn">Adjacent to standby</Stamp>}
+          </div>
         </div>
-        <Link
-          href={`/pilot/${crewId}/window/${window.id}`}
-          className="shrink-0 rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
-        >
-          Plan trip
-        </Link>
-      </div>
-    </li>
+        <p className="font-mono text-sm text-ink-muted">
+          {formatDurationMinutes(travel.minutes)} to travel
+        </p>
+      </TicketBody>
+      <Perforation />
+      <TicketStub className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-ink-faint">
+          Duty ends {formatTurkeyDateTime(window.dutyEndsAt)} ·{" "}
+          {formatDurationMinutes(transferMinutes)} to reach the station
+        </p>
+        <ButtonLink href={`/pilot/${crewId}/window/${window.id}`} size="sm">
+          {planState === "committed" ? "Open plan" : planState === "dropped" ? "Plan again" : "Plan trip"}
+        </ButtonLink>
+      </TicketStub>
+    </Ticket>
   );
 }
 
-function DutyPeriodCard({ duty }: { duty: ScheduleDutyView }) {
+/** The schedule reads as a printed timetable: one dense row per duty, mono times. */
+function DutyRow({ duty }: { duty: ScheduleDutyView }) {
   return (
-    <li className="rounded-md border border-zinc-100 px-4 py-3 text-sm dark:border-zinc-900">
-      <p className="font-medium text-zinc-800 dark:text-zinc-200">
-        {formatTurkeyRange(duty.startAt, duty.endAt)}
-      </p>
-      <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
+    <li className="border-b border-rule py-3 last:border-b-0">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <span className="font-mono text-sm tabular-nums text-ink">
+          {formatTurkeyRange(duty.startAt, duty.endAt)}
+        </span>
+        <span className="text-xs text-ink-muted">
+          {DUTY_TYPE_LABEL[duty.type] ?? duty.type} ·{" "}
+          <span className="font-mono">{duty.rawCode}</span>
+        </span>
+      </div>
+      <p className="mt-0.5 font-mono text-xs tabular-nums text-ink-faint">
         {formatUtcRange(duty.startAt, duty.endAt)} GMT
-      </p>
-      <p className="mt-1 text-zinc-500 dark:text-zinc-400">
-        {DUTY_TYPE_LABEL[duty.type] ?? duty.type} · {duty.rawCode}
       </p>
 
       {duty.flightLegs.length > 0 && (
-        <ul className="mt-2 flex flex-col gap-1.5">
+        <ul className="mt-2 flex flex-col gap-1">
           {duty.flightLegs.map((leg, i) => (
-            <li key={i}>
-              <span className="text-zinc-700 dark:text-zinc-300">
-                {leg.flightNumber} {leg.origin}/{leg.departureTime} →{" "}
-                {leg.destination}/{leg.arrivalTime}
-              </span>
+            <li key={i} className="font-mono text-xs tabular-nums text-ink-muted">
+              {leg.flightNumber} {leg.origin}/{leg.departureTime} → {leg.destination}/
+              {leg.arrivalTime}
               {leg.departureTimeUtc && leg.arrivalTimeUtc && (
-                <span className="block text-xs text-zinc-400 dark:text-zinc-500">
-                  {leg.departureTimeUtc} → {leg.arrivalTimeUtc} GMT
+                <span className="ml-2 text-ink-faint">
+                  ({leg.departureTimeUtc} → {leg.arrivalTimeUtc} GMT)
                 </span>
               )}
             </li>
@@ -109,42 +112,30 @@ export default async function PilotPage({
   const { shownWindows, hiddenWindows } = view;
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-6 py-12">
-      <div className="flex items-baseline justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-            {view.name}
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Crew ID {view.crewId}
-            {view.aircraftType ? ` · ${view.aircraftType}` : ""}
-            {view.period ? ` · ${view.period}` : ""}
-          </p>
-        </div>
-        <Link
-          href="/upload"
-          className="text-sm font-medium text-zinc-600 underline underline-offset-4 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-50"
-        >
-          Upload new schedule
-        </Link>
-      </div>
+    <PageShell>
+      <PageHeader
+        title={view.name}
+        meta={[`Crew ${view.crewId}`, view.aircraftType, view.period]
+          .filter(Boolean)
+          .join(" · ")}
+      />
 
       {!view.hasSchedule ? (
-        <p className="mt-8 text-zinc-600 dark:text-zinc-400">
-          No schedule uploaded yet.
-        </p>
+        <div className="mt-10">
+          <EmptyState>No schedule uploaded yet.</EmptyState>
+        </div>
       ) : (
         <>
           <section className="mt-10">
-            <h2 className="text-lg font-medium text-zinc-950 dark:text-zinc-50">
+            <h2 className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-ink-muted">
               Commute opportunities
             </h2>
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              Windows are measured from when you can actually be moving — duty release plus
-              your transfer time — to your next report time. Türkiye local; GMT underneath.
+            <p className="mt-2 text-sm text-ink-muted">
+              Windows run from when you can actually be moving — duty release plus your transfer
+              time — to your next report time. Türkiye local; GMT underneath.
             </p>
 
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid grid-cols-1 gap-4 rounded-lg border border-rule bg-sunken p-4 sm:grid-cols-2">
               <MinOffHoursControl crewId={crewId} initialMinOffHours={view.minOffHours} />
               <TransferBufferControl
                 crewId={crewId}
@@ -153,13 +144,15 @@ export default async function PilotPage({
             </div>
 
             {shownWindows.length === 0 ? (
-              <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
-                No off-periods meet your {view.minOffHours}h threshold this period.
-              </p>
+              <div className="mt-4">
+                <EmptyState>
+                  No off-periods meet your {view.minOffHours}h threshold this period.
+                </EmptyState>
+              </div>
             ) : (
-              <ul className="mt-4 flex flex-col gap-3">
+              <ul className="mt-4 flex flex-col gap-4">
                 {shownWindows.map((window) => (
-                  <OffWindowCard
+                  <OffWindowTicket
                     key={window.id}
                     crewId={crewId}
                     window={window}
@@ -171,13 +164,13 @@ export default async function PilotPage({
 
             {hiddenWindows.length > 0 && (
               <details className="mt-4">
-                <summary className="cursor-pointer text-sm font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200">
+                <summary className="cursor-pointer text-sm text-ink-muted hover:text-ink">
                   {hiddenWindows.length} shorter break
                   {hiddenWindows.length === 1 ? "" : "s"} below your threshold
                 </summary>
-                <ul className="mt-3 flex flex-col gap-3">
+                <ul className="mt-3 flex flex-col gap-4">
                   {hiddenWindows.map((window) => (
-                    <OffWindowCard
+                    <OffWindowTicket
                       key={window.id}
                       crewId={crewId}
                       window={window}
@@ -190,21 +183,21 @@ export default async function PilotPage({
           </section>
 
           <section className="mt-12">
-            <h2 className="text-lg font-medium text-zinc-950 dark:text-zinc-50">
+            <h2 className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-ink-muted">
               Full schedule
             </h2>
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              Duty spans run report → release, in Türkiye local time. Flight legs are local at
-              each station.
+            <p className="mt-2 text-sm text-ink-muted">
+              Duty spans run report → release, in Türkiye local time. Flight legs are local at each
+              station.
             </p>
-            <ul className="mt-4 flex flex-col gap-2">
+            <ul className="mt-4 rounded-xl border border-rule bg-card px-5">
               {view.dutyPeriods.map((duty) => (
-                <DutyPeriodCard key={duty.id} duty={duty} />
+                <DutyRow key={duty.id} duty={duty} />
               ))}
             </ul>
           </section>
         </>
       )}
-    </div>
+    </PageShell>
   );
 }

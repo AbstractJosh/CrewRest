@@ -48,6 +48,9 @@ export interface PlanCardView {
   notes: string | null;
   originLabel: string;
   destinationLabel: string;
+  /** Raw station codes, for the route line. `originLabel`/`destinationLabel` are these resolved. */
+  originCode: string;
+  destinationCode: string;
   departureAt: Date;
   returnArrivalAt: Date;
   isTicketed: boolean;
@@ -84,6 +87,8 @@ function toCard(
     notes: commitment.notes,
     originLabel: label(commitment.outboundTrain.originCode),
     destinationLabel: label(commitment.outboundTrain.destinationCode),
+    originCode: commitment.outboundTrain.originCode,
+    destinationCode: commitment.outboundTrain.destinationCode,
     departureAt,
     returnArrivalAt,
     isTicketed:
