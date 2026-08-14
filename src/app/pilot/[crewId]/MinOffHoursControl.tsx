@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Field, TextInput } from "@/components/ui/Field";
 
 export default function MinOffHoursControl({
   crewId,
@@ -29,14 +30,20 @@ export default function MinOffHoursControl({
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-      <label
-        htmlFor="min-off-hours"
-        className="text-sm font-medium text-zinc-800 dark:text-zinc-200"
-      >
-        Only show off-periods of at least{" "}
-        <span className="tabular-nums">{value}</span>h
-      </label>
+    <Field
+      label={
+        <>
+          Minimum off-period <span className="font-mono tabular-nums">{value}</span>h
+        </>
+      }
+      htmlFor="min-off-hours"
+      hint="How long a gap must be before it's worth suggesting a trip home."
+    >
+      {/*
+        Field only auto-wires aria-describedby when it gets a single control as its child; this
+        wraps two, so both wire it themselves, pointing at the same "min-off-hours-hint" id Field
+        derives from htmlFor="min-off-hours" above.
+      */}
       <div className="flex items-center gap-3">
         <input
           id="min-off-hours"
@@ -49,24 +56,22 @@ export default function MinOffHoursControl({
           onMouseUp={() => save(value)}
           onTouchEnd={() => save(value)}
           onKeyUp={() => save(value)}
-          className="w-full accent-zinc-900 dark:accent-zinc-100"
+          aria-describedby="min-off-hours-hint"
+          className="w-full accent-ink"
           disabled={isSaving}
         />
-        <input
+        <TextInput
           type="number"
           min={1}
           max={240}
           value={value}
           onChange={(e) => setValue(Number(e.target.value))}
           onBlur={() => save(value)}
-          className="w-16 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          aria-describedby="min-off-hours-hint"
+          className="w-16 shrink-0"
           disabled={isSaving}
         />
       </div>
-      <p className="text-xs text-zinc-500 dark:text-zinc-500">
-        This is a personal setting — it decides how long a gap between duties
-        needs to be before it&apos;s worth suggesting a trip home.
-      </p>
-    </div>
+    </Field>
   );
 }
