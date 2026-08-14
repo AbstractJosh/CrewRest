@@ -104,6 +104,28 @@ describe("buildTimeline", () => {
     assert.equal(days[0].blocks[0].href, "/pilot/abc/window/w1");
   });
 
+  it("keeps a duty ending exactly at Türkiye midnight on a single row", () => {
+    // 20:00 on 15 Aug Türkiye local → 00:00 on 16 Aug Türkiye local (exact midnight).
+    // Türkiye is UTC+3, no DST: 20:00 local = 17:00Z on 15 Aug; 00:00 local on 16 Aug = 21:00Z on 15 Aug.
+    const days = buildTimeline({
+      duties: [
+        {
+          id: "d1",
+          startAt: new Date("2026-08-15T17:00:00Z"),
+          endAt: new Date("2026-08-15T21:00:00Z"),
+          type: "FLIGHT",
+          label: "TK1",
+        },
+      ],
+      windows: [],
+    });
+
+    assert.equal(days.length, 1);
+    assert.equal(days[0].blocks.length, 1);
+    assert.equal(days[0].blocks[0].endPercent, 100);
+    assert.equal(days[0].blocks[0].continuesAfter, false);
+  });
+
   it("drops a zero-length span rather than emitting a zero-width block", () => {
     const instant = new Date("2026-08-15T03:00:00Z");
     const days = buildTimeline({

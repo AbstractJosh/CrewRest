@@ -10,6 +10,7 @@ import {
   type ScheduleDutyView,
   type ScheduleWindowView,
 } from "@/lib/views/pilotScheduleView";
+import { buildTimeline } from "@/lib/views/timelineLayout";
 import PageShell from "@/components/chrome/PageShell";
 import PageHeader from "@/components/chrome/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -17,6 +18,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import { Ticket, TicketBody, Perforation, TicketStub } from "@/components/ui/Ticket";
 import { Stamp } from "@/components/ui/Stamp";
 import TimeStack from "@/components/domain/TimeStack";
+import ScheduleTimeline from "@/components/domain/ScheduleTimeline";
 import MinOffHoursControl from "./MinOffHoursControl";
 import TransferBufferControl from "./TransferBufferControl";
 
@@ -107,6 +109,23 @@ export default async function PilotPage({
 
   const { shownWindows, hiddenWindows } = view;
 
+  const timelineDays = buildTimeline({
+    duties: view.dutyPeriods.map((duty) => ({
+      id: duty.id,
+      startAt: duty.startAt,
+      endAt: duty.endAt,
+      type: duty.type,
+      label: duty.rawCode,
+    })),
+    windows: shownWindows.map((window) => ({
+      id: window.id,
+      startAt: window.travel.startAt,
+      endAt: window.travel.endAt,
+      label: formatDurationMinutes(window.travel.minutes),
+      href: `/pilot/${crewId}/window/${window.id}`,
+    })),
+  });
+
   return (
     <PageShell>
       <PageHeader
@@ -122,6 +141,15 @@ export default async function PilotPage({
         </div>
       ) : (
         <>
+          <section className="mt-10">
+            <h2 className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-ink-muted">
+              This period
+            </h2>
+            <div className="mt-4">
+              <ScheduleTimeline days={timelineDays} />
+            </div>
+          </section>
+
           <section className="mt-10">
             <h2 className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-ink-muted">
               Commute opportunities
