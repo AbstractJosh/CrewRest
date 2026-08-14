@@ -69,7 +69,18 @@ export default function UploadForm() {
           accept(event.dataTransfer.files[0]);
         }}
         onClick={() => fileInputRef.current?.click()}
-        className={`cursor-pointer rounded-xl border border-dashed px-5 py-10 text-center transition-colors ${
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            fileInputRef.current?.click();
+          } else if (event.key === " ") {
+            event.preventDefault();
+            fileInputRef.current?.click();
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        aria-label="Choose a roster PDF to upload"
+        className={`cursor-pointer rounded-xl border border-dashed px-5 py-10 text-center transition-colors outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action ${
           isDragging ? "border-ink-faint bg-sunken" : "border-perf bg-card"
         }`}
       >
@@ -78,6 +89,7 @@ export default function UploadForm() {
           type="file"
           accept="application/pdf,.pdf"
           className="hidden"
+          tabIndex={-1}
           onChange={(event) => accept(event.target.files?.[0])}
         />
         {file ? (
