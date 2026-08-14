@@ -50,8 +50,12 @@ export default function HomeCityForm({
     <Ticket className="mt-6">
       <TicketBody>
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <Field label="Which city do you commute home to?">
-            <Select value={stationCode} onChange={(e) => setStationCode(e.target.value)}>
+          <Field label="Which city do you commute home to?" htmlFor="home-city">
+            <Select
+              id="home-city"
+              value={stationCode}
+              onChange={(e) => setStationCode(e.target.value)}
+            >
               {destinations.map((d) => (
                 <option key={d.code} value={d.code}>
                   {d.city}

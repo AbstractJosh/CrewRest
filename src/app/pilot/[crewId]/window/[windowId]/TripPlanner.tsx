@@ -148,8 +148,10 @@ export default function TripPlanner({
                 </span>
               </>
             }
+            htmlFor="booking-reference"
           >
             <TextInput
+              id="booking-reference"
               value={bookingReference}
               onChange={(e) => setBookingReference(e.target.value)}
               placeholder="e.g. 1234567890"
