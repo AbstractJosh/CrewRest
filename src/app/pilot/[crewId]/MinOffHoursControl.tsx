@@ -63,10 +63,10 @@ export default function MinOffHoursControl({
           disabled={isSaving}
         />
         {/*
-          TextInput's base class already carries w-full; a caller className of "w-16" collides at
-          equal specificity and loses to w-full on stylesheet order (see Button's className hazard
-          in CLAUDE.md — this is the same trap surfacing through TextInput). Sizing the wrapper
-          instead of fighting the input's own width class is the local, non-shared fix.
+          TextInput composes its class as `${CONTROL} ${className}` with no tailwind-merge, and
+          CONTROL already carries w-full. A caller's competing width class therefore loses to
+          w-full on stylesheet order regardless of prop order, so it can't reliably narrow the
+          input. Sizing the wrapper instead of fighting the input's own width class is the fix.
         */}
         <div className="w-16 shrink-0">
           <TextInput
