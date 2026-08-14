@@ -1,23 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { formatTurkeyDateTime, formatUtcRange } from "@/lib/time/turkeyTime";
 import type { PlanCardView } from "@/lib/views/plansView";
-
-type SaveState = "idle" | "saving" | "saved" | "error";
-
-function SaveHint({ state }: { state: SaveState }) {
-  if (state === "idle") return null;
-  const text =
-    state === "saving" ? "Saving…" : state === "saved" ? "Saved" : "Could not save";
-  const tone =
-    state === "error"
-      ? "text-red-600 dark:text-red-400"
-      : "text-zinc-400 dark:text-zinc-500";
-  return <span className={`text-xs ${tone}`}>{text}</span>;
-}
+import { SaveHint, type SaveState } from "@/components/ui/SaveHint";
+import { InlineEdit } from "@/components/ui/InlineEdit";
+import { TextArea } from "@/components/ui/Field";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { Stamp } from "@/components/ui/Stamp";
+import { Ticket, TicketBody, Perforation, TicketStub } from "@/components/ui/Ticket";
+import TimeStack from "@/components/domain/TimeStack";
+import RouteLine from "@/components/domain/RouteLine";
 
 export default function PlanCard({
   plan,
@@ -80,134 +73,123 @@ export default function PlanCard({
     }
   }
 
-  const departure = formatTurkeyDateTime(plan.departureAt);
-  const returnArrival = formatTurkeyDateTime(plan.returnArrivalAt);
-
   return (
-    <li
-      className={`rounded-lg border p-4 ${
-        plan.isCancelled
-          ? "border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40"
-          : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <input
-            value={tripName}
-            onChange={(e) => {
-              setTripName(e.target.value);
-              setNameState("idle");
-            }}
-            onBlur={() => {
-              const trimmed = tripName.trim();
-              if (trimmed === lastSavedTripName.current) return;
-              patch({ tripName }, setNameState, () => {
-                lastSavedTripName.current = trimmed;
-              });
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") e.currentTarget.blur();
-            }}
-            placeholder={plan.title}
-            aria-label="Trip name"
-            className="w-full truncate rounded border border-transparent bg-transparent px-1 py-0.5 font-medium text-zinc-900 hover:border-zinc-300 focus:border-zinc-400 focus:outline-none dark:text-zinc-100 dark:hover:border-zinc-700"
-          />
-          <p className="mt-1 px-1 text-sm text-zinc-500 dark:text-zinc-400">
-            {plan.originLabel} ⇄ {plan.destinationLabel}
-            {showPilot && ` · ${plan.pilotName} (${plan.crewId})`}
-          </p>
-          <p className="mt-0.5 px-1 text-sm text-zinc-600 dark:text-zinc-300">
-            out {departure} · back {returnArrival}
-          </p>
-          <p className="mt-0.5 px-1 text-xs text-zinc-400 dark:text-zinc-500">
-            {formatUtcRange(plan.departureAt, plan.returnArrivalAt)} GMT
-          </p>
-        </div>
-
-        <div className="flex shrink-0 flex-col items-end gap-1.5">
-          {plan.isCancelled ? (
-            <span className="rounded bg-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-              Cancelled
-            </span>
-          ) : plan.isTicketed ? (
-            <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
-              Ticketed
-            </span>
-          ) : (
-            <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-              Planned
-            </span>
-          )}
-          <SaveHint state={nameState} />
-        </div>
-      </div>
-
-      {plan.notes || notesOpen ? (
-        <div className="mt-3">
-          <textarea
-            value={notes}
-            onChange={(e) => {
-              setNotes(e.target.value);
-              setNotesState("idle");
-            }}
-            onBlur={() => {
-              const trimmed = notes.trim();
-              if (trimmed === lastSavedNotes.current) return;
-              patch({ notes }, setNotesState, () => {
-                lastSavedNotes.current = trimmed;
-              });
-            }}
-            rows={notesExpanded ? 8 : 3}
-            placeholder="Anything worth remembering about this trip — who you're meeting, what to confirm before you travel."
-            aria-label="Trip notes"
-            className="w-full whitespace-pre-wrap rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-          />
-          <div className="mt-1 flex items-center gap-3">
-            {notes.split("\n").length > 3 && (
-              <button
-                type="button"
-                onClick={() => setNotesExpanded((v) => !v)}
-                className="text-xs font-medium text-zinc-500 underline underline-offset-2 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
-              >
-                {notesExpanded ? "Show less" : "Show more"}
-              </button>
+    <Ticket as="li" muted={plan.isCancelled}>
+      <TicketBody className="flex flex-col gap-3">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <InlineEdit
+              value={tripName}
+              onChange={(e) => {
+                setTripName(e.target.value);
+                setNameState("idle");
+              }}
+              onBlur={() => {
+                const trimmed = tripName.trim();
+                if (trimmed === lastSavedTripName.current) return;
+                patch({ tripName }, setNameState, () => {
+                  lastSavedTripName.current = trimmed;
+                });
+              }}
+              placeholder={plan.title}
+              aria-label="Trip name"
+            />
+            <p className="mt-1 px-1 text-sm text-ink-muted">
+              {plan.originLabel} ⇄ {plan.destinationLabel}
+              {showPilot && ` · ${plan.pilotName} (${plan.crewId})`}
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            {plan.isCancelled ? (
+              <Stamp tone="neutral">Cancelled</Stamp>
+            ) : plan.isTicketed ? (
+              <Stamp tone="ok">Ticketed</Stamp>
+            ) : (
+              <Stamp tone="neutral">Planned</Stamp>
             )}
-            <SaveHint state={notesState} />
+            <SaveHint state={nameState} />
           </div>
         </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setNotesOpen(true)}
-          className="mt-3 text-sm font-medium text-zinc-500 underline underline-offset-4 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
-        >
-          Add notes
-        </button>
-      )}
 
-      {plan.hasEstimates && (
-        <p className="mt-3 text-xs text-amber-700 dark:text-amber-400">
-          Saved from the curated timetable, not a live feed — confirm on ebilet before travelling.
-        </p>
-      )}
+        <RouteLine from={plan.originCode} to={plan.destinationCode} />
 
-      <div className="mt-4 flex flex-wrap items-center gap-4">
-        <Link
-          href={plan.href}
-          className="text-sm font-medium text-zinc-600 underline underline-offset-4 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-50"
-        >
+        <div className="flex flex-wrap justify-between gap-4">
+          <div>
+            <p className="font-mono text-[0.65rem] uppercase tracking-[0.12em] text-ink-faint">
+              Out
+            </p>
+            <TimeStack at={plan.departureAt} size="sm" />
+          </div>
+          <div>
+            <p className="font-mono text-[0.65rem] uppercase tracking-[0.12em] text-ink-faint">
+              Back
+            </p>
+            <TimeStack at={plan.returnArrivalAt} size="sm" />
+          </div>
+        </div>
+
+        {plan.notes || notesOpen ? (
+          <div>
+            <TextArea
+              value={notes}
+              onChange={(e) => {
+                setNotes(e.target.value);
+                setNotesState("idle");
+              }}
+              onBlur={() => {
+                const trimmed = notes.trim();
+                if (trimmed === lastSavedNotes.current) return;
+                patch({ notes }, setNotesState, () => {
+                  lastSavedNotes.current = trimmed;
+                });
+              }}
+              rows={notesExpanded ? 8 : 3}
+              placeholder="Anything worth remembering about this trip — who you're meeting, what to confirm before you travel."
+              aria-label="Trip notes"
+            />
+            <div className="mt-1 flex items-center gap-3">
+              {notes.split("\n").length > 3 && (
+                <Button
+                  type="button"
+                  variant="link"
+                  onClick={() => setNotesExpanded((v) => !v)}
+                  className="text-xs"
+                >
+                  {notesExpanded ? "Show less" : "Show more"}
+                </Button>
+              )}
+              <SaveHint state={notesState} />
+            </div>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            variant="link"
+            onClick={() => setNotesOpen(true)}
+            className="self-start"
+          >
+            Add notes
+          </Button>
+        )}
+
+        {plan.hasEstimates && (
+          <p className="text-xs text-warn">
+            Saved from the curated timetable, not a live feed — confirm on ebilet before travelling.
+          </p>
+        )}
+      </TicketBody>
+
+      <Perforation />
+
+      <TicketStub className="flex flex-wrap items-center gap-4">
+        <ButtonLink href={plan.href} variant="link">
           Open planner
-        </Link>
+        </ButtonLink>
 
         {plan.isCancelled ? (
-          <button
-            type="button"
-            onClick={() => patch({ cancelled: false }, setActionState)}
-            className="text-sm font-medium text-zinc-600 underline underline-offset-4 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-50"
-          >
+          <Button type="button" variant="link" onClick={() => patch({ cancelled: false }, setActionState)}>
             Restore
-          </button>
+          </Button>
         ) : confirmingCancel ? (
           <>
             {/*
@@ -215,42 +197,32 @@ export default function PlanCard({
               lands under a double-click, which is exactly the gesture the two-step guard exists
               to survive. "Confirm cancel" moves one slot over so a double-click can't land on it.
             */}
-            <button
-              type="button"
-              onClick={() => setConfirmingCancel(false)}
-              className="text-sm text-zinc-500 underline underline-offset-4 dark:text-zinc-400"
-            >
+            <Button type="button" variant="link" onClick={() => setConfirmingCancel(false)}>
               Keep it
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="danger"
               onClick={() => {
                 setConfirmingCancel(false);
                 patch({ cancelled: true }, setActionState);
               }}
-              className="text-sm font-medium text-red-600 underline underline-offset-4 dark:text-red-400"
             >
               Confirm cancel
-            </button>
+            </Button>
           </>
         ) : (
-          <button
-            type="button"
-            onClick={() => setConfirmingCancel(true)}
-            className="text-sm font-medium text-zinc-500 underline underline-offset-4 hover:text-red-600 dark:text-zinc-400 dark:hover:text-red-400"
-          >
+          <Button type="button" variant="link" onClick={() => setConfirmingCancel(true)}>
             Cancel plan
-          </button>
+          </Button>
         )}
 
         {plan.bookingReference && (
-          <span className="text-xs text-zinc-400 dark:text-zinc-500">
-            PNR {plan.bookingReference}
-          </span>
+          <span className="font-mono text-xs text-ink-faint">PNR {plan.bookingReference}</span>
         )}
 
         <SaveHint state={actionState} />
-      </div>
-    </li>
+      </TicketStub>
+    </Ticket>
   );
 }
