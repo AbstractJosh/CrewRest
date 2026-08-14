@@ -35,7 +35,7 @@ export default function AppHeader() {
 
   return (
     <header className="sticky top-0 z-10 border-b border-rule bg-paper/90 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-4xl items-center gap-6 px-6 py-3">
+      <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center gap-6 px-6 py-3">
         <Link
           href="/"
           className="rounded-sm font-mono text-sm font-semibold uppercase tracking-[0.18em] text-ink outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action"
