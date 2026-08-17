@@ -26,6 +26,11 @@ export interface ScheduleOffWindowInput {
   startAt: Date;
   endAt: Date;
   travelEligible: boolean;
+  /**
+   * The window's commitment, if one was ever made. Only `cancelledAt` is read: the schedule page
+   * says *whether* there is a plan, never which trains it holds.
+   */
+  commitment: { cancelledAt: Date | null } | null;
 }
 
 export interface ScheduleDutyPeriodInput {
@@ -46,12 +51,22 @@ export interface PilotScheduleViewInput {
   } | null;
 }
 
+/**
+ * Where a window stands with the pilot: nothing planned yet, a live plan, or a plan they dropped.
+ *
+ * Same three names the ticket spine uses, so the page maps this straight onto an accent without a
+ * lookup table in the middle. The union lives here rather than being imported from the component:
+ * `src/lib` stays framework-free, and this is a fact about the window, not about how it is drawn.
+ */
+export type WindowPlanState = "open" | "committed" | "dropped";
+
 export interface ScheduleWindowView {
   id: string;
   /** Duty release (MS) — the raw start of the gap, before the transfer buffer. */
   dutyEndsAt: Date;
   travelEligible: boolean;
   travel: TravelWindow;
+  planState: WindowPlanState;
 }
 
 export interface ScheduleDutyView {
@@ -92,6 +107,9 @@ export function assemblePilotScheduleView(
     dutyEndsAt: w.startAt,
     travelEligible: w.travelEligible,
     travel: computeTravelWindow(w, pilot.airportTransferMinutes),
+    // A cancelled row is kept rather than deleted (see CLAUDE.md), so "has a commitment" is not
+    // the same question as "has a plan" — check cancelledAt, not the row's existence.
+    planState: !w.commitment ? "open" : w.commitment.cancelledAt === null ? "committed" : "dropped",
   }));
 
   const isWorthShowing = (w: ScheduleWindowView) =>
@@ -119,6 +137,22 @@ export function assemblePilotScheduleView(
   };
 }
 
+/**
+ * The crew id of whoever uploaded most recently, or null when nobody has uploaded at all.
+ *
+ * The schedule pages are URLs keyed to a crew id and there is no session to remember one, so a
+ * page that isn't already under /pilot/ has no way to name a pilot. The most recent upload is the
+ * only answer available without inventing an identity, and on the single-pilot case CrewRest is
+ * actually used for it is the right one. `/schedule` exists to ask this question.
+ */
+export async function findLatestPilotCrewId(): Promise<string | null> {
+  const latest = await prisma.scheduleUpload.findFirst({
+    orderBy: { uploadedAt: "desc" },
+    select: { pilot: { select: { crewId: true } } },
+  });
+  return latest?.pilot.crewId ?? null;
+}
+
 /** Loads and assembles the view. Null when no pilot has that crew id. */
 export async function buildPilotScheduleView(
   crewId: string,
@@ -131,7 +165,10 @@ export async function buildPilotScheduleView(
     orderBy: { uploadedAt: "desc" },
     include: {
       dutyPeriods: { orderBy: { sortIndex: "asc" } },
-      offWindows: { orderBy: { startAt: "asc" } },
+      offWindows: {
+        orderBy: { startAt: "asc" },
+        include: { commitment: { select: { cancelledAt: true } } },
+      },
     },
   });
 

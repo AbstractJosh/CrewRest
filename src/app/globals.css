@@ -1,26 +1,106 @@
 @import "tailwindcss";
 
+/*
+ * Theme is the pilot's explicit choice, never the OS's. There is no "auto": the app is a printed
+ * ticket on warm paper, and that is what it opens as. Dark is opt-in and remembered.
+ *
+ * So `data-theme="dark"` is the single switch, and Tailwind's built-in `dark:` — which keys off
+ * prefers-color-scheme — has to be redefined to match it. Leaving it alone would let a utility
+ * fire on a dark-OS machine while every token below stayed light.
+ */
+@custom-variant dark {
+  &:where([data-theme="dark"] *) { @slot; }
+}
+
+/* Light — ticket stock. Warm off-white, never pure #fff; ink, never pure black. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #faf9f7;
+  --card: #ffffff;
+  --sunken: #f4f2ef;
+  --ink: #1a1a17;
+  --ink-muted: #5c5a54;
+  --ink-faint: #8a8780;
+  --rule: #e3e0da;
+  --perf: #cfcbc3;
+  --action: #1a1a17;
+  --action-ink: #faf9f7;
+  --ok: #1f6f4a;
+  --ok-bg: #e8f3ec;
+  --warn: #8a5a12;
+  --warn-bg: #fbf1de;
+  --danger: #9b2c2c;
+  --danger-bg: #fbeaea;
+  /*
+   * The spine down a ticket's left edge, which is what tells the three card states apart at a
+   * glance: an untaken commute opportunity, a plan committed to, a plan cancelled. Deliberately
+   * softer than --danger/--ok — a red opportunity card is an invitation, not a warning, so it must
+   * not read in the same register as an error. These are painted as a wide solid band, so they are
+   * pitched lighter than a hairline rule of the same intent would be; at 32px, --danger's weight
+   * would be the loudest thing on the page.
+   */
+  --accent-open: #e8a79f;
+  --accent-committed: #a3cbb2;
+  /* Darker than it looks like it should be: a dropped ticket is also `muted`, so this band sits on
+   * --sunken rather than --card and a lighter grey washes out against it entirely. */
+  --accent-dropped: #bdb8ae;
+}
+
+/*
+ * Dark is not light inverted — it is ink on a dark card. One block, reached only by the pilot
+ * explicitly asking for it; there is deliberately no prefers-color-scheme copy to keep in sync.
+ */
+:root[data-theme="dark"] {
+  --paper: #0f0f0e;
+  --card: #1a1a18;
+  --sunken: #141413;
+  --ink: #f2f0eb;
+  --ink-muted: #a3a09a;
+  --ink-faint: #6e6b65;
+  --rule: #2e2d2a;
+  --perf: #3d3b37;
+  --action: #f2f0eb;
+  --action-ink: #1a1a18;
+  --ok: #7fcfa4;
+  --ok-bg: #14291f;
+  --warn: #e8b96a;
+  --warn-bg: #2b2216;
+  --danger: #f08a8a;
+  --danger-bg: #2e1919;
+  --accent-open: #9e5f5a;
+  --accent-committed: #4f8168;
+  --accent-dropped: #4d4a45;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-rule: var(--rule);
+  --color-perf: var(--perf);
+  --color-action: var(--action);
+  --color-action-ink: var(--action-ink);
+  --color-ok: var(--ok);
+  --color-ok-bg: var(--ok-bg);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-accent-open: var(--accent-open);
+  --color-accent-committed: var(--accent-committed);
+  --color-accent-dropped: var(--accent-dropped);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/*
+ * `font-family` here previously hardcoded Arial, silently overriding the Geist fonts layout.tsx
+ * loads. The app rendered in Arial from the first commit until this change.
+ */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
 }

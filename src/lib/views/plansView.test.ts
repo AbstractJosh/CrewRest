@@ -254,6 +254,17 @@ describe("assemblePlansView", () => {
 
       assert.equal(view.upcoming[0].href, "/pilot/12345/window/w1");
     });
+
+    it("exposes the raw station codes alongside the resolved labels", () => {
+      const view = assemblePlansView(makeInput({ commitments: [plan("codes", 20)] }));
+
+      const card = view.upcoming[0];
+      assert.equal(card.originCode, "IST");
+      assert.equal(card.destinationCode, "ESK");
+      // The labels must keep working — the codes are additive.
+      assert.equal(card.originLabel, "Istanbul");
+      assert.equal(card.destinationLabel, "Eskisehir");
+    });
   });
 
   describe("pilot attribution", () => {
