@@ -1,7 +1,9 @@
 /**
- * Everything the pilot's schedule page needs: the latest upload's duty periods, and its off-windows
- * partitioned into the ones worth showing as commute opportunities and the ones below the pilot's
- * threshold.
+ * Everything the pilot's schedule page needs: the latest upload's off-windows, partitioned into the
+ * ones worth showing as commute opportunities and the ones below the pilot's threshold.
+ *
+ * The duty periods themselves are not here. They are the whole of `pilotRosterView`, which the roster
+ * page reads instead — a schedule that loaded them would be paying for a list nothing renders.
  *
  * Split the same way as `offWindowView` — a pure `assemble` with a thin `build` around it — for the
  * same two reasons: the partition is worth testing without a database, and a route handler should
@@ -10,7 +12,6 @@
 
 import { prisma } from "@/lib/prisma";
 import { computeTravelWindow, type TravelWindow } from "@/lib/schedule/travelWindow";
-import type { FlightLeg } from "@/lib/pdf/scheduleParser";
 
 /** Only the pilot fields this view reads — so a test needn't build a whole Prisma row. */
 export interface PilotScheduleViewPilot {
@@ -33,22 +34,20 @@ export interface ScheduleOffWindowInput {
   commitment: { cancelledAt: Date | null } | null;
 }
 
-export interface ScheduleDutyPeriodInput {
-  id: string;
-  startAt: Date;
-  endAt: Date;
-  type: string;
-  rawCode: string;
-  flightLegs: unknown;
-}
-
 export interface PilotScheduleViewInput {
   pilot: PilotScheduleViewPilot;
   schedule: {
     period: string;
     offWindows: ScheduleOffWindowInput[];
-    dutyPeriods: ScheduleDutyPeriodInput[];
   } | null;
+  /**
+   * Taken as an input rather than read here, for the same reason `assemblePlansView` does it: a
+   * pure assembler that called the clock itself would partition differently depending on when
+   * its tests ran. The system clock is the right source — this only needs "roughly now" to the
+   * nearest window, and every comparison below is between absolute instants, so the host's own
+   * timezone never enters into it.
+   */
+  now: Date;
 }
 
 /**
@@ -69,16 +68,6 @@ export interface ScheduleWindowView {
   planState: WindowPlanState;
 }
 
-export interface ScheduleDutyView {
-  id: string;
-  startAt: Date;
-  endAt: Date;
-  type: string;
-  rawCode: string;
-  /** The JSON column resolved once here rather than cast in the component. */
-  flightLegs: FlightLeg[];
-}
-
 export interface PilotScheduleView {
   crewId: string;
   name: string;
@@ -90,7 +79,12 @@ export interface PilotScheduleView {
   hasSchedule: boolean;
   shownWindows: ScheduleWindowView[];
   hiddenWindows: ScheduleWindowView[];
-  dutyPeriods: ScheduleDutyView[];
+  /**
+   * How many windows were dropped for being over. Surfaced as a count, not a list: the page has
+   * to be able to say *why* a roster's first half is missing, or a pilot opening a part-used
+   * month reads the gap as lost data.
+   */
+  pastWindowCount: number;
 }
 
 export function assemblePilotScheduleView(
@@ -112,6 +106,17 @@ export function assemblePilotScheduleView(
     planState: !w.commitment ? "open" : w.commitment.cancelledAt === null ? "committed" : "dropped",
   }));
 
+  /*
+   * Measured against the window's hard deadline — the next report time, which the transfer buffer
+   * never moves — not its start, so a window already under way still counts: the pilot can catch
+   * a later train in it. A window whose deadline is exactly now is over here; `assemblePlansView`
+   * leaves a plan under Upcoming for that same instant, on the grounds that a trip the pilot has
+   * already committed to and paid for is worth keeping in front of them until it has visibly
+   * elapsed. The two only disagree on the single instant of equality.
+   */
+  const isOver = (w: ScheduleWindowView) => w.travel.endAt.getTime() <= input.now.getTime();
+  const live = windows.filter((w) => !isOver(w));
+
   const isWorthShowing = (w: ScheduleWindowView) =>
     w.travel.isViable && w.travel.minutes >= minOffMinutes;
 
@@ -123,17 +128,9 @@ export function assemblePilotScheduleView(
     airportTransferMinutes: pilot.airportTransferMinutes,
     period: schedule?.period ?? null,
     hasSchedule: schedule !== null,
-    shownWindows: windows.filter(isWorthShowing),
-    hiddenWindows: windows.filter((w) => !isWorthShowing(w)),
-    dutyPeriods: (schedule?.dutyPeriods ?? []).map((duty) => ({
-      id: duty.id,
-      startAt: duty.startAt,
-      endAt: duty.endAt,
-      type: duty.type,
-      rawCode: duty.rawCode,
-      // Unchecked cast, as everywhere this JSON column is read — see CLAUDE.md.
-      flightLegs: (duty.flightLegs as FlightLeg[] | null) ?? [],
-    })),
+    shownWindows: live.filter(isWorthShowing),
+    hiddenWindows: live.filter((w) => !isWorthShowing(w)),
+    pastWindowCount: windows.length - live.length,
   };
 }
 
@@ -143,7 +140,7 @@ export function assemblePilotScheduleView(
  * The schedule pages are URLs keyed to a crew id and there is no session to remember one, so a
  * page that isn't already under /pilot/ has no way to name a pilot. The most recent upload is the
  * only answer available without inventing an identity, and on the single-pilot case CrewRest is
- * actually used for it is the right one. `/schedule` exists to ask this question.
+ * actually used for it is the right one. `/schedule` and `/roster` exist to ask this question.
  */
 export async function findLatestPilotCrewId(): Promise<string | null> {
   const latest = await prisma.scheduleUpload.findFirst({
@@ -156,6 +153,7 @@ export async function findLatestPilotCrewId(): Promise<string | null> {
 /** Loads and assembles the view. Null when no pilot has that crew id. */
 export async function buildPilotScheduleView(
   crewId: string,
+  now: Date = new Date(),
 ): Promise<PilotScheduleView | null> {
   const pilot = await prisma.pilot.findUnique({ where: { crewId } });
   if (!pilot) return null;
@@ -164,7 +162,6 @@ export async function buildPilotScheduleView(
     where: { pilotId: pilot.id },
     orderBy: { uploadedAt: "desc" },
     include: {
-      dutyPeriods: { orderBy: { sortIndex: "asc" } },
       offWindows: {
         orderBy: { startAt: "asc" },
         include: { commitment: { select: { cancelledAt: true } } },
@@ -172,5 +169,5 @@ export async function buildPilotScheduleView(
     },
   });
 
-  return assemblePilotScheduleView({ pilot, schedule });
+  return assemblePilotScheduleView({ pilot, schedule, now });
 }

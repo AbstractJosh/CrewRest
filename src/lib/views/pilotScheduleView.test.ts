@@ -35,10 +35,17 @@ function gap(
   };
 }
 
+/**
+ * Before every window `gap()` can build, so the existing threshold and plan-state cases see a
+ * roster entirely in the future and stay about what they were written to test.
+ */
+const BEFORE_THE_ROSTER = buildTurkeyDate(2026, 7, 1, 0, 0);
+
 function makeInput(overrides: Partial<PilotScheduleViewInput> = {}): PilotScheduleViewInput {
   return {
     pilot: PILOT,
-    schedule: { period: "AUG 2026", offWindows: [], dutyPeriods: [] },
+    schedule: { period: "AUG 2026", offWindows: [] },
+    now: BEFORE_THE_ROSTER,
     ...overrides,
   };
 }
@@ -61,7 +68,6 @@ describe("assemblePilotScheduleView", () => {
         makeInput({
           schedule: {
             period: "AUG 2026",
-            dutyPeriods: [],
             offWindows: [gap("short", 10, 25), gap("long", 20, 26)],
           },
         }),
@@ -84,7 +90,7 @@ describe("assemblePilotScheduleView", () => {
       const view = assemblePilotScheduleView(
         makeInput({
           pilot: { ...PILOT, minOffHours: 1 },
-          schedule: { period: "AUG 2026", dutyPeriods: [], offWindows: [gap("tiny", 10, 2)] },
+          schedule: { period: "AUG 2026", offWindows: [gap("tiny", 10, 2)] },
         }),
       );
 
@@ -97,7 +103,7 @@ describe("assemblePilotScheduleView", () => {
       const windows = [gap("a", 5, 10), gap("b", 10, 30), gap("c", 15, 25), gap("d", 20, 48)];
       const view = assemblePilotScheduleView(
         makeInput({
-          schedule: { period: "AUG 2026", dutyPeriods: [], offWindows: windows },
+          schedule: { period: "AUG 2026", offWindows: windows },
         }),
       );
 
@@ -116,7 +122,6 @@ describe("assemblePilotScheduleView", () => {
       // re-uploading the roster.
       const schedule = {
         period: "AUG 2026",
-        dutyPeriods: [],
         offWindows: [gap("a", 5, 10), gap("b", 10, 30)],
       };
 
@@ -139,7 +144,6 @@ describe("assemblePilotScheduleView", () => {
           pilot: { ...PILOT, minOffHours: 1 },
           schedule: {
             period: "AUG 2026",
-            dutyPeriods: [],
             offWindows: [
               gap("untouched", 5, 30),
               gap("live", 10, 30, { cancelledAt: null }),
@@ -166,7 +170,6 @@ describe("assemblePilotScheduleView", () => {
         makeInput({
           schedule: {
             period: "AUG 2026",
-            dutyPeriods: [],
             offWindows: [gap("short", 10, 5, { cancelledAt: null })],
           },
         }),
@@ -177,46 +180,76 @@ describe("assemblePilotScheduleView", () => {
     });
   });
 
-  describe("duty periods", () => {
-    it("resolves the flight-legs JSON column once, defaulting to none", () => {
+  describe("windows that have already passed", () => {
+    /** Three 30h windows, starting midday on the 2nd, 10th and 20th. */
+    const schedule = {
+      period: "AUG 2026",
+      offWindows: [gap("early", 2, 30), gap("middle", 10, 30), gap("late", 20, 30)],
+    };
+
+    it("drops the ones already over and counts them", () => {
+      const view = assemblePilotScheduleView(
+        makeInput({ schedule, now: buildTurkeyDate(2026, 7, 15, 9, 0) }),
+      );
+
+      assert.deepEqual(
+        view.shownWindows.map((w) => w.id),
+        ["late"],
+      );
+      assert.equal(view.pastWindowCount, 2);
+    });
+
+    /*
+     * The window a pilot is sitting in right now is the one they are most likely to be planning,
+     * so the cutoff has to be the report-back deadline, not the window's start.
+     */
+    it("keeps a window that has started but not ended", () => {
+      const view = assemblePilotScheduleView(
+        makeInput({ schedule, now: buildTurkeyDate(2026, 7, 10, 20, 0) }),
+      );
+
+      assert.deepEqual(
+        view.shownWindows.map((w) => w.id),
+        ["middle", "late"],
+      );
+      assert.equal(view.pastWindowCount, 1);
+    });
+
+    it("treats a window ending exactly now as over", () => {
+      const view = assemblePilotScheduleView(
+        makeInput({ schedule, now: buildTurkeyDate(2026, 7, 3, 18, 0) }),
+      );
+
+      assert.equal(
+        view.shownWindows.some((w) => w.id === "early"),
+        false,
+      );
+      assert.equal(view.pastWindowCount, 1);
+    });
+
+    it("drops past windows from the below-threshold list too", () => {
       const view = assemblePilotScheduleView(
         makeInput({
-          schedule: {
-            period: "AUG 2026",
-            offWindows: [],
-            dutyPeriods: [
-              {
-                id: "d1",
-                startAt: buildTurkeyDate(2026, 7, 5, 6, 0),
-                endAt: buildTurkeyDate(2026, 7, 5, 14, 0),
-                type: "FLIGHT",
-                rawCode: "TK123",
-                flightLegs: [
-                  {
-                    flightNumber: "TK123",
-                    origin: "IST",
-                    destination: "ESB",
-                    departureTime: "07:00",
-                    arrivalTime: "08:15",
-                  },
-                ],
-              },
-              {
-                id: "d2",
-                startAt: buildTurkeyDate(2026, 7, 6, 0, 0),
-                endAt: buildTurkeyDate(2026, 7, 7, 0, 0),
-                type: "DAYOFF",
-                rawCode: "OFF",
-                flightLegs: null,
-              },
-            ],
-          },
+          pilot: { ...PILOT, minOffHours: 100 },
+          schedule,
+          now: buildTurkeyDate(2026, 7, 15, 9, 0),
         }),
       );
 
-      assert.equal(view.dutyPeriods[0].flightLegs.length, 1);
-      assert.equal(view.dutyPeriods[0].flightLegs[0].flightNumber, "TK123");
-      assert.deepEqual(view.dutyPeriods[1].flightLegs, [], "a day off has no legs, not null");
+      assert.deepEqual(view.shownWindows, [], "100h threshold hides all three");
+      assert.deepEqual(
+        view.hiddenWindows.map((w) => w.id),
+        ["late"],
+        "a short break that is also over is doubly useless",
+      );
+      assert.equal(view.pastWindowCount, 2);
+    });
+
+    it("counts nothing as past when the whole roster is ahead", () => {
+      const view = assemblePilotScheduleView(makeInput({ schedule }));
+
+      assert.equal(view.shownWindows.length, 3);
+      assert.equal(view.pastWindowCount, 0);
     });
   });
 
@@ -228,7 +261,7 @@ describe("assemblePilotScheduleView", () => {
       assert.equal(view.period, null);
       assert.deepEqual(view.shownWindows, []);
       assert.deepEqual(view.hiddenWindows, []);
-      assert.deepEqual(view.dutyPeriods, []);
+      assert.equal(view.pastWindowCount, 0);
       assert.equal(view.name, "Test Pilot");
       assert.equal(view.crewId, "12345");
     });

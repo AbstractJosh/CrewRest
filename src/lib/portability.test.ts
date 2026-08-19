@@ -27,8 +27,10 @@ const LIB_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_ONLY = new Set([
   "prisma.ts",
   "views/offWindowView.ts",
+  "views/pilotRosterView.ts",
   "views/pilotScheduleView.ts",
   "views/plansView.ts",
+  "views/rosterCalendarView.ts",
 ]);
 
 function sourceFiles(dir: string, prefix = ""): string[] {

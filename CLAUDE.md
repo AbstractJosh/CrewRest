@@ -18,10 +18,9 @@ Next.js 16 (App Router) · React 19 · TypeScript · Prisma 7 on SQLite · Tailw
 ## Setup and commands
 
 ```bash
-npm install
-cp .env.example .env
-npx prisma generate         # required: the client is generated to src/generated/prisma, which is gitignored
-npx prisma migrate dev
+npm install                 # postinstall runs `prisma generate` for you
+cp .env.example .env        # required: nothing reads the database without DATABASE_URL
+npx prisma migrate dev      # required: creates dev.db, which is gitignored
 npm run dev
 ```
 
@@ -33,7 +32,9 @@ npm run lint
 npm run build
 ```
 
-A fresh clone will not typecheck or build until `prisma generate` has run — `src/generated/prisma` is gitignored and several modules import types from it.
+A fresh clone will not typecheck or build until `prisma generate` has run — `src/generated/prisma` is gitignored and several modules import types from it. That is why it hangs off `postinstall` rather than being left to the reader; `prisma generate` does not need `DATABASE_URL`, so it is safe to run before `.env` exists.
+
+The other two steps have no such hook and are still manual. Skipping them fails at runtime rather than at build: without `.env` every Prisma call throws, and without `migrate` there is no `dev.db` for it to reach — so pages render but uploading a roster and anything else touching the database returns a 500.
 
 ## Architecture
 
@@ -48,7 +49,8 @@ PDF → extractPdfText → parseSchedulePdf → computeOffWindows → [persisted
 ```
 
 - `POST /api/upload` (`src/app/api/upload/route.ts`) runs the left half and persists `Pilot` / `ScheduleUpload` / `DutyPeriod` / `OffWindow`.
-- `src/app/pilot/[crewId]/page.tsx`, `.../window/[windowId]/page.tsx` and `src/app/plans/page.tsx` are server components that run the right half on every render. They hold no logic of their own: each awaits one builder from `src/lib/views/` and renders the result.
+- `src/app/pilot/[crewId]/page.tsx`, `.../roster/page.tsx`, `.../window/[windowId]/page.tsx` and `src/app/plans/page.tsx` are server components that run the right half on every render. They hold no logic of their own: each awaits one builder from `src/lib/views/` and renders the result.
+- `/pilot/[crewId]` is the commute opportunities; `/pilot/[crewId]/roster` is the duty list the roster prints, and is deliberately unfiltered by the clock — the schedule hides windows that have passed, the roster keeps everything, because it is what the pilot checks to see what they flew. `/schedule` and `/roster` are redirect-only routes that answer "which pilot?" for the header, which is a client component and cannot ask the database itself.
 - `/` is a static welcome page with two links; `/upload` is the roster upload form. `/plans` lists every commitment on the server — CrewRest has no auth, no session and no user concept, so "my plans" is every plan, and pilot attribution shows only when more than one roster has been uploaded. It must carry `export const dynamic = "force-dynamic"`: it queries the database and has no dynamic params, so without it Next prerenders it and hits SQLite during `next build`.
 - The three `PATCH`-style routes under `src/app/api/pilot/[crewId]/` only write per-pilot settings; they never recompute stored data (see "stored vs derived").
 
@@ -56,7 +58,7 @@ PDF → extractPdfText → parseSchedulePdf → computeOffWindows → [persisted
 
 Each page has a builder split in two: a pure `assemble*View` doing the filtering, choosing, serializing and commitment-matching, and an `async build*View` around it doing the Prisma queries and the timetable search. Nothing about that assembly is web-specific, so it is unit-tested directly instead of by rendering a page against a database, and a route handler could serve it as JSON to a client that isn't React.
 
-Three of them: `offWindowView.ts`, `pilotScheduleView.ts`, `plansView.ts`. A pure `assemble*` **never reads the clock** — `assemblePlansView` takes `now` as an input, because the upcoming/past split would otherwise be non-deterministic and its tests would depend on the time of day they ran. `plansView` also takes its station-name map as an input rather than calling the provider, and reads trains from the stored commitment JSON rather than the timetable: those legs were serialized at commit time, and making a list page wait on an unofficial endpoint for data already stored would be a bad trade.
+Four of them: `offWindowView.ts`, `pilotScheduleView.ts`, `pilotRosterView.ts`, `plansView.ts`. A pure `assemble*` **never reads the clock** — `assemblePlansView` takes `now` as an input, because the upcoming/past split would otherwise be non-deterministic and its tests would depend on the time of day they ran. `plansView` also takes its station-name map as an input rather than calling the provider, and reads trains from the stored commitment JSON rather than the timetable: those legs were serialized at commit time, and making a list page wait on an unofficial endpoint for data already stored would be a bad trade.
 
 `SerializedTrainOption` — the `TrainOption` shape with ISO instants and a resolved booking URL — lives in `src/lib/trains/serialized.ts`, not beside the component that renders it. It is a contract: it crosses to the client *and* it is what `CommuteCommitment.outboundTrain`/`returnTrain` store.
 

@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    /*
+     * Design handoffs are vendored references, not source: the bundles under design/ ship their
+     * own runtime so the prototype opens in a browser, and its README says not to port it. Linting
+     * someone else's prototype only reports problems nobody is going to fix.
+     */
+    "design/**",
   ]),
 ]);
 

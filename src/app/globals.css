@@ -43,6 +43,22 @@
   /* Darker than it looks like it should be: a dropped ticket is also `muted`, so this band sits on
    * --sunken rather than --card and a lighter grey washes out against it entirely. */
   --accent-dropped: #bdb8ae;
+
+  /*
+   * Roster calendar. The three event colours are the bar under each block and nothing else — no
+   * fill, no border — so they are pitched bolder than the ticket accents above, which are wide
+   * bands. --cal-rule is a hairline between day cells and sits lighter than --rule, which closes
+   * the calendar off at the top; --cal-label is quieter than --ink-faint because the weekday
+   * header is scaffolding, not data.
+   */
+  --cal-duty: #4d78ac;
+  /* Standby is duty of a lesser kind, so it takes the handoff's own softer blue rather than a
+   * fourth hue: same family, visibly lighter, and it cannot be confused with transit or train. */
+  --cal-standby: #8fadd0;
+  --cal-transit: #4f9070;
+  --cal-train: #c4635a;
+  --cal-rule: #ece9e3;
+  --cal-label: #b5b1a9;
 }
 
 /*
@@ -69,6 +85,18 @@
   --accent-open: #9e5f5a;
   --accent-committed: #4f8168;
   --accent-dropped: #4d4a45;
+
+  /*
+   * The design is a light one, so dark takes the handoff's own softer counterparts: the bold
+   * colours read as near-black smears against #0f0f0e at 6px.
+   */
+  --cal-duty: #8fadd0;
+  /* Dark inverts the pairing: the soft blue is now the bold one, so standby steps down instead. */
+  --cal-standby: #5d7fa5;
+  --cal-transit: #a3cbb2;
+  --cal-train: #e8a79f;
+  --cal-rule: #232221;
+  --cal-label: #56534e;
 }
 
 @theme inline {
@@ -91,6 +119,12 @@
   --color-accent-open: var(--accent-open);
   --color-accent-committed: var(--accent-committed);
   --color-accent-dropped: var(--accent-dropped);
+  --color-cal-duty: var(--cal-duty);
+  --color-cal-standby: var(--cal-standby);
+  --color-cal-transit: var(--cal-transit);
+  --color-cal-train: var(--cal-train);
+  --color-cal-rule: var(--cal-rule);
+  --color-cal-label: var(--cal-label);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -103,4 +137,55 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-sans);
+}
+
+/*
+ * Roster calendar metrics, from the design handoff's two size steps.
+ *
+ * They are variables rather than Tailwind utilities because the overlay holding the event bars is
+ * positioned by arithmetic on them — `max(date-reserve, (cell - block) / 2)` — which `calc()`
+ * evaluates at whichever step is in force. The prototype did this with a resize listener and a
+ * JS-computed rem value; a media query gets the same result without shipping the listener, and the
+ * calendar component ships JavaScript only for click-to-reveal, never for measurement.
+ *
+ * The handoff's `--cal-lane-h` is gone with the lanes it spaced. Bars no longer stack: they sit in
+ * one row and are pushed apart where they would collide, so there is exactly one block height to
+ * reserve and a lane pitch would only have left phantom gutter under it.
+ */
+.roster-calendar {
+  --cal-cell-h: 4.2rem;
+  --cal-block-h: 1.55rem;
+  --cal-date-reserve: 1.15rem;
+  --cal-bar: 6px;
+
+  /*
+   * How tall the button behind a bar is, as opposed to the bar. At the narrow step the bar is
+   * half a rem and the only way to read an event's times is to tap it — there is no hover on a
+   * touch screen — so the target is floored at the 24px minimum while the ink stays where the
+   * design put it. Stated once: custom properties resolve where they are used, so the `max()`
+   * re-reads whichever `--cal-block-h` is in force.
+   */
+  --cal-hit-h: max(var(--cal-block-h), 1.5rem);
+}
+
+/*
+ * The bars' overlay. It centres them in the cell without ever riding over the date number, and
+ * with a single row it is a constant — so it is a rule here rather than an inline style the
+ * component recomputes per week.
+ */
+.roster-calendar-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: max(var(--cal-date-reserve), calc((var(--cal-cell-h) - var(--cal-block-h)) / 2));
+  height: var(--cal-block-h);
+}
+
+@media (max-width: 700px) {
+  .roster-calendar {
+    --cal-cell-h: 3rem;
+    --cal-block-h: 0.5rem;
+    --cal-date-reserve: 1.1rem;
+    --cal-bar: 5px;
+  }
 }
