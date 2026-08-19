@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  html, body { margin: 0; background: #faf9f7; color: #1a1a17; font-family: "Geist", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  * { box-sizing: border-box; }
+  a { color: #1a1a17; text-decoration: underline; text-underline-offset: 3px; }
+  a:hover { color: #5c5a54; }
+  button { font: inherit; }
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #faf9f7; padding: 2.5rem 1.5rem 4rem;">
+  <div style="width: 100%; max-width: 68rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.25rem;">
+
+    <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+      <div>
+        <h1 style="margin: 0; font-size: 1.5rem; font-weight: 600; letter-spacing: -0.02em;">Roster calendar</h1>
+        <p style="margin: 0.25rem 0 0; font-family: 'Geist Mono', monospace; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: #8a8780;">{{ periodLabel }} · CREW 41827 · A320</p>
+      </div>
+    </div>
+
+    <div style="border-top: 1px solid #e3e0da;">
+      <div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); ">
+        <sc-for list="{{ weekdays }}" as="w" hint-placeholder-count="7">
+          <div style="padding: 0.5rem 0 0.6rem; font-family: 'Geist Mono', monospace; font-size: 0.6rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.14em; color: #b5b1a9;">{{ w }}</div>
+        </sc-for>
+      </div>
+
+      <sc-for list="{{ weeks }}" as="wk" hint-placeholder-count="5">
+        <div style="position: relative;">
+          <div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));">
+            <sc-for list="{{ wk.days }}" as="c" hint-placeholder-count="7">
+              <div style="{{ c.cellStyle }}">
+                <span style="{{ c.dateStyle }}">{{ c.dateLabel }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="{{ wk.overlayStyle }}">
+            <sc-for list="{{ wk.segments }}" as="s" hint-placeholder-count="1">
+              <div title="{{ s.tooltip }}" style="{{ s.style }}">
+                <span style="{{ s.titleStyle }}">{{ s.title }}</span>
+                <span style="{{ s.timeStyle }}">{{ s.local }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 1.25rem; align-items: center; padding: 0.25rem 0.15rem;">
+      <sc-for list="{{ legend }}" as="l" hint-placeholder-count="4">
+        <span style="display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: #8a8780;">
+          <span style="width: 1.25rem; height: 6px; background: {{ l.swatch }};"></span>
+          {{ l.label }}
+        </span>
+      </sc-for>
+    </div>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showUtc&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;weekStart&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;monday&quot;,&quot;sunday&quot;],&quot;default&quot;:&quot;monday&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+const TYPES = {
+  duty:    { label: "Flight duty", swatch: "#4d78ac", soft: "#8fadd0", bg: "#eaf0f7", ink: "#2b4a6f", title: "Flight duty",   local: "06:40 → 15:05", utc: "0340Z → 1205Z", from: 6.67, to: 15.08 },
+  transit: { label: "Transit",     swatch: "#4f9070", soft: "#a3cbb2", bg: "#e8f3ec", ink: "#1f6f4a", title: "Transit to stn", local: "04:55 → 06:10", utc: "0155Z → 0310Z", from: 4.92, to: 6.17 },
+  train:   { label: "Train ride",  swatch: "#c4635a", soft: "#e8a79f", bg: "#fbeaea", ink: "#9b2c2c", title: "Train ride",     local: "16:20 → 19:45", utc: "1320Z → 1645Z", from: 16.33, to: 19.75 },
+  off:     { label: "Off / erase", swatch: "#faf9f7" }
+};
+const ORDER = ["duty", "transit", "train", "off"];
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const DAY = 86400000;
+
+const iso = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const parse = s => { const p = s.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); };
+const spanDays = (a, b) => Math.round((parse(b) - parse(a)) / DAY) + 1;
+
+class Component extends DCLogic {
+  state = {
+    year: 2026, month: 7, narrow: false,
+    events: [
+      { id: 1, type: "transit", start: "2026-08-03", end: "2026-08-03" },
+      { id: 2, type: "duty",    start: "2026-08-04", end: "2026-08-06" },
+      { id: 3, type: "train",   start: "2026-08-07", end: "2026-08-07" },
+      { id: 4, type: "duty",    start: "2026-08-11", end: "2026-08-13" },
+      { id: 5, type: "transit", start: "2026-08-17", end: "2026-08-17" },
+      { id: 6, type: "train",   start: "2026-08-20", end: "2026-08-20" },
+      { id: 7, type: "duty",    start: "2026-08-24", end: "2026-08-27" }
+    ]
+  };
+
+  componentDidMount() {
+    this._onResize = () => {
+      const narrow = window.innerWidth < 700;
+      if (narrow !== this.state.narrow) this.setState({ narrow });
+    };
+    this._onResize();
+    window.addEventListener("resize", this._onResize);
+  }
+  componentWillUnmount() { window.removeEventListener("resize", this._onResize); }
+
+  renderVals() {
+    const { year, month, events } = this.state;
+    const narrow = !!this.state.narrow;
+    const showUtc = (this.props.showUtc ?? true) && !narrow;
+    const mondayFirst = (this.props.weekStart ?? "monday") === "monday";
+
+    const first = new Date(year, month, 1);
+    const lead = mondayFirst ? (first.getDay() + 6) % 7 : first.getDay();
+    const daysIn = new Date(year, month + 1, 0).getDate();
+    const totalCells = Math.ceil((lead + daysIn) / 7) * 7;
+    const gridStart = new Date(year, month, 1 - lead);
+
+    const cellH = narrow ? 3 : 4.2;       // rem
+    const topPad = narrow ? 1.1 : 1.15;   // rem reserved for the date number
+    const laneH = narrow ? 0.65 : 1.8;    // rem per event lane
+
+    const weeks = [];
+    for (let w = 0; w * 7 < totalCells; w++) {
+      const days = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(gridStart.getTime() + (w * 7 + i) * DAY);
+        const ds = iso(d);
+        const inMonth = d.getMonth() === month;
+        const isWeekend = (mondayFirst ? i : (i + 6) % 7) >= 5;
+        days.push({
+          dateLabel: d.getDate(),
+          cellStyle: [
+            "display: flex", "flex-direction: column", "align-items: flex-start", "justify-content: flex-start",
+            "text-align: left", "width: 100%",
+            "height: " + cellH + "rem",
+            "padding: " + (narrow ? "0.3rem 0.1rem" : "0.35rem 0.15rem"),
+            "border: 0", "border-bottom: 1px solid #ece9e3", "background: transparent",
+            "opacity: " + (inMonth ? "1" : "0.35")
+          ].join(";"),
+          dateStyle: [
+            "display: block", "font-family: 'Geist Mono', monospace", "font-variant-numeric: tabular-nums",
+            narrow ? "font-size: 0.7rem" : "font-size: 0.75rem", "font-weight: 500", "line-height: 1.1",
+            "color: " + (inMonth ? "#1a1a17" : "#8a8780")
+          ].join(";")
+        });
+      }
+
+      const weekStart = iso(new Date(gridStart.getTime() + w * 7 * DAY));
+      const weekEnd = iso(new Date(gridStart.getTime() + (w * 7 + 6) * DAY));
+      const lanes = [];
+      const segments = events
+        .filter(e => e.end >= weekStart && e.start <= weekEnd)
+        .sort((a, b) => (a.start < b.start ? -1 : 1))
+        .map(e => {
+          const segStart = e.start > weekStart ? e.start : weekStart;
+          const segEnd = e.end < weekEnd ? e.end : weekEnd;
+          const col = spanDays(weekStart, segStart);
+          const span = spanDays(segStart, segEnd);
+          let lane = 0;
+          while (lanes[lane] && lanes[lane] > col) lane++;
+          lanes[lane] = col + span;
+          const t = TYPES[e.type];
+          const isHead = e.start === segStart;
+          const isTail = e.end === segEnd;
+          const r = "0.375rem";
+          const colW = 100 / 7;
+          const startFrac = isHead ? t.from / 24 : 0;
+          const endFrac = isTail ? t.to / 24 : 1;
+          const dayStart = (col - 1) * colW;
+          const dayEnd = (col - 1 + span) * colW;
+          let width = Math.max((span - 1 + endFrac - startFrac) * colW, 10.4);
+          width = Math.min(width, dayEnd - dayStart);
+          const left = Math.max(dayStart, Math.min(dayStart + (dayEnd - dayStart - width) / 2, 100 - width));
+          const tight = width < 11.5;
+          const shortTitle = { duty: "Duty", transit: "Transit", train: "Train" }[e.type];
+          return {
+            title: isHead ? (tight ? shortTitle : t.title) : "continues",
+            local: isHead && !narrow ? (tight ? t.local.split(" → ")[0] : t.local) : "",
+            utc: "",
+            tooltip: t.title + " · " + e.start + " → " + e.end + " · " + t.local,
+            style: [
+              "position: absolute",
+              "left: " + left.toFixed(2) + "%",
+              "width: " + width.toFixed(2) + "%",
+              "top: " + (lane * laneH).toFixed(2) + "rem",
+              "pointer-events: auto", "cursor: default", "text-align: left", "overflow: hidden",
+              "font: inherit",
+              "display: flex", "flex-direction: row", "align-items: center", "justify-content: flex-start",
+              "gap: " + (tight ? "0.3rem" : "0.4rem"),
+              "height: " + (narrow ? "0.5rem" : "1.55rem"),
+              "padding: " + (narrow ? "0" : "0 0.15rem"),
+              "line-height: 1.1",
+              "background: transparent", "border: 0",
+              "border-bottom: " + (narrow ? "5px" : "6px") + " solid " + t.swatch
+            ].join(";"),
+            titleStyle: narrow ? "display: none" : [
+              "display: block", "font-size: 0.7rem", "font-weight: 600", "flex-shrink: 0", "line-height: 1.35",
+              "white-space: nowrap", "text-overflow: ellipsis",
+              "color: " + (isHead ? "#1a1a17" : "#b5b1a9"),
+              "font-style: " + (isHead ? "normal" : "italic")
+            ].join(";"),
+            timeStyle: narrow ? "display: none" : "display: block; flex-shrink: 0; line-height: 1.25; font-family: 'Geist Mono', monospace; font-variant-numeric: tabular-nums; font-size: 0.62rem; color: #8a8780; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
+            utcStyle: narrow ? "display: none" : "display: block; flex-shrink: 0; line-height: 1.25; font-family: 'Geist Mono', monospace; font-variant-numeric: tabular-nums; font-size: 0.6rem; color: #8a8780; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+          };
+        });
+
+      weeks.push({
+        days,
+        segments,
+        overlayStyle: [
+          "position: absolute", "left: 0", "right: 0",
+          "top: " + Math.max(topPad, (cellH - Math.max(lanes.length, 1) * (narrow ? 0.5 : 1.55)) / 2).toFixed(3) + "rem",
+          "height: " + (Math.max(lanes.length, 1) * laneH) + "rem",
+          "pointer-events: none"
+        ].join(";")
+      });
+    }
+
+    return {
+      periodLabel: (MONTHS[month] + " " + year).toUpperCase(),
+      weekdays: (mondayFirst ? ["Mo","Tu","We","Th","Fr","Sa","Su"] : ["Su","Mo","Tu","We","Th","Fr","Sa"]),
+      weeks,
+      legend: ORDER.filter(k => k !== "off").map(k => ({ label: TYPES[k].label, swatch: TYPES[k].swatch }))
+    };
+  }
+}
+
+</script>
+</body>
+</html>

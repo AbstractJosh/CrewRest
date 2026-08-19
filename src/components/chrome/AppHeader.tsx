@@ -38,6 +38,8 @@ function NavLink({ href, active, children }: { href: string; active: boolean; ch
 export default function AppHeader() {
   const pathname = usePathname() ?? "/";
   const crewId = crewIdFromPath(pathname);
+  // Both the pilot-scoped page and the /roster redirect that stands in for it off those routes.
+  const isRoster = pathname.endsWith("/roster");
 
   return (
     <header className="sticky top-0 z-10 border-b border-rule bg-paper/90 backdrop-blur">
@@ -49,9 +51,19 @@ export default function AppHeader() {
           CrewRest
         </Link>
         <nav className="flex flex-1 items-center gap-5">
-          {/* Active on the trip planner too — it is reached through the schedule and sits under it. */}
-          <NavLink href={crewId ? `/pilot/${crewId}` : "/schedule"} active={pathname.startsWith("/pilot/")}>
+          {/*
+            Active on the trip planner too — it is reached through the schedule and sits under it.
+            The roster lives under /pilot/ as well, so it has to be excluded by hand or both links
+            light up at once.
+          */}
+          <NavLink
+            href={crewId ? `/pilot/${crewId}` : "/schedule"}
+            active={pathname.startsWith("/pilot/") && !isRoster}
+          >
             Schedule
+          </NavLink>
+          <NavLink href={crewId ? `/pilot/${crewId}/roster` : "/roster"} active={isRoster}>
+            Roster
           </NavLink>
           <NavLink href="/plans" active={pathname.startsWith("/plans")}>
             Plans
