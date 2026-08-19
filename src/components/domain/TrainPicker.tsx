@@ -2,23 +2,10 @@
 
 import { formatDurationMinutes, formatTurkeyRange } from "@/lib/time/turkeyTime";
 import { Select } from "@/components/ui/Field";
+import BookingHandoff from "@/components/domain/BookingHandoff";
+import { describeBookingTarget } from "@/lib/trains/bookingTarget";
+import { cheapestFare, formatFare } from "@/lib/trains/fares";
 import type { SerializedTrainOption } from "@/lib/trains/serialized";
-import type { TrainFare } from "@/lib/trains/TrainProvider";
-
-function cheapestFare(option: SerializedTrainOption): TrainFare | null {
-  if (!option.fares || option.fares.length === 0) return null;
-  return option.fares.reduce((cheapest, fare) =>
-    fare.priceMinor < cheapest.priceMinor ? fare : cheapest,
-  );
-}
-
-/** Exact to the kuruş — rounding a ₺450,50 fare to ₺451 misstates what the ticket costs. */
-function formatPrice(fare: TrainFare): string {
-  return new Intl.NumberFormat("tr-TR", {
-    style: "currency",
-    currency: fare.currency,
-  }).format(fare.priceMinor / 100);
-}
 
 /**
  * One `<option>` label. Price and seats-left only appear when the provider supplied them, so the
@@ -31,7 +18,7 @@ function optionLabel(option: SerializedTrainOption): string {
   ];
 
   const fare = cheapestFare(option);
-  if (fare) parts.push(`· ${formatPrice(fare)}`);
+  if (fare) parts.push(`· ${formatFare(fare)}`);
 
   if (option.availableSeats !== undefined && option.availableSeats <= 10) {
     parts.push(`· ${option.availableSeats} seats left`);
@@ -70,14 +57,10 @@ export default function TrainPicker({
         </Select>
       </label>
       {selected && (
-        <a
-          href={selected.bookingUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="self-start text-sm font-medium text-ink-muted underline underline-offset-4 hover:text-ink"
-        >
-          Buy on TCDD ↗
-        </a>
+        <BookingHandoff
+          url={selected.bookingUrl}
+          caption={describeBookingTarget(selected).caption}
+        />
       )}
     </div>
   );

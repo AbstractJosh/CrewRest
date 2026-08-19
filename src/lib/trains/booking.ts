@@ -18,7 +18,7 @@
 
 import type { TrainOption } from "@/lib/trains/TrainProvider";
 import { toTcddStation } from "@/lib/trains/data/tcddStations";
-import { TURKEY_UTC_OFFSET_MINUTES, formatTurkeyTime } from "@/lib/time/turkeyTime";
+import { formatTurkeyTime, turkeyDateKey } from "@/lib/time/turkeyTime";
 
 export const EBILET_SEARCH_URL = "https://ebilet.tcddtasimacilik.gov.tr/";
 
@@ -44,14 +44,6 @@ export const EBILET_DEFAULT_TEMPLATE =
   "https://ebilet.tcddtasimacilik.gov.tr/sefer-listesi-yonlendirme" +
   "?binisIstasyonId={fromId}&inisIstasyonId={toId}&gidisTarih={date}" +
   "&donusTarih=&yolcuSayisi=1&seyahatTuru=1";
-
-/** Türkiye-local "YYYY-MM-DD" — the date the pilot actually travels, not the UTC one. */
-function turkeyDateKey(date: Date): string {
-  const shifted = new Date(date.getTime() + TURKEY_UTC_OFFSET_MINUTES * 60_000);
-  const month = String(shifted.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(shifted.getUTCDate()).padStart(2, "0");
-  return `${shifted.getUTCFullYear()}-${month}-${day}`;
-}
 
 /**
  * Where to send the pilot to buy this train. Falls back to the bare search page whenever the

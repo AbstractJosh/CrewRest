@@ -42,6 +42,8 @@ const MONTH_ABBREVS = [
   "Dec",
 ];
 
+const DAY_ABBREVS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 /** Formats a Date as Turkey-local "DD Mon" (e.g. "15 Aug"), for display. */
 export function formatTurkeyDateLabel(date: Date): string {
   const turkeyMs = date.getTime() + TURKEY_UTC_OFFSET_MINUTES * 60_000;
@@ -109,6 +111,36 @@ export function formatDurationMinutes(totalMinutes: number): string {
   const hours = Math.floor(abs / 60);
   const minutes = abs % 60;
   return minutes === 0 ? `${sign}${hours}h` : `${sign}${hours}h ${minutes}m`;
+}
+
+/**
+ * Türkiye-local "YYYY-MM-DD" — the calendar day the pilot actually travels, not the UTC one.
+ *
+ * The machine-readable half of a Türkiye day: it is what the ebilet link's `gidisTarih` carries
+ * and what the timetable cache is keyed by. Shifts into UTC first for the reason `turkeyMidnight`
+ * spells out below.
+ */
+export function turkeyDateKey(date: Date): string {
+  const shifted = new Date(date.getTime() + TURKEY_UTC_OFFSET_MINUTES * 60_000);
+  const month = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(shifted.getUTCDate()).padStart(2, "0");
+  return `${shifted.getUTCFullYear()}-${month}-${day}`;
+}
+
+/**
+ * The human-readable half of the same day, e.g. "Sat 22 Aug" for "2026-08-22".
+ *
+ * Takes the key rather than the instant on purpose. It exists to label a link whose date
+ * parameter *is* that key, and deriving "which Türkiye day is this" twice — once for the URL,
+ * once for the caption beside it — is two chances to disagree about a 00:40 departure.
+ *
+ * The key is already Türkiye-local, so there is nothing left to shift: it is read back through
+ * `Date.UTC` purely to get the weekday, which no arithmetic on the string can give.
+ */
+export function formatTurkeyDateKeyLabel(dateKey: string): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return `${DAY_ABBREVS[weekday]} ${String(day).padStart(2, "0")} ${MONTH_ABBREVS[month - 1]}`;
 }
 
 /**

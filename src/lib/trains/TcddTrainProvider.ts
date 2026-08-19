@@ -22,7 +22,7 @@ import {
   type TcddClientOptions,
 } from "@/lib/trains/tcddClient";
 import { mapTcddResponse } from "@/lib/trains/tcddResponse";
-import { TURKEY_UTC_OFFSET_MINUTES } from "@/lib/time/turkeyTime";
+import { turkeyDateKey } from "@/lib/time/turkeyTime";
 
 export { TcddProviderError };
 
@@ -51,14 +51,6 @@ const cache = (globalForTcdd.tcddTimetableCache ??= new Map<string, CacheEntry>(
  */
 export function resetTcddTimetableCache(): void {
   cache.clear();
-}
-
-/** Türkiye-local calendar date, "YYYY-MM-DD" — the cache key. */
-function turkeyDateKey(date: Date): string {
-  const shifted = new Date(date.getTime() + TURKEY_UTC_OFFSET_MINUTES * 60_000);
-  const month = String(shifted.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(shifted.getUTCDate()).padStart(2, "0");
-  return `${shifted.getUTCFullYear()}-${month}-${day}`;
 }
 
 export interface TcddProviderConfig {

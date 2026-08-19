@@ -6,7 +6,11 @@ process.env.TZ = "America/New_York";
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { turkeyMidnight } from "@/lib/time/turkeyTime";
+import {
+  formatTurkeyDateKeyLabel,
+  turkeyDateKey,
+  turkeyMidnight,
+} from "@/lib/time/turkeyTime";
 
 describe("turkeyMidnight", () => {
   it("runs with a non-Türkiye host zone, so the assertions below can't pass vacuously", () => {
@@ -41,6 +45,31 @@ describe("turkeyMidnight", () => {
     assert.equal(
       turkeyMidnight(new Date("2026-09-01T00:30:00Z")).toISOString(),
       "2026-08-31T21:00:00.000Z",
+    );
+  });
+});
+
+describe("turkeyDateKey", () => {
+  it("names the Türkiye day, not the UTC one", () => {
+    // 22:30Z on the 21st is already 01:30 on the 22nd in Türkiye — the case that decides which
+    // day's train list the booking link opens.
+    assert.equal(turkeyDateKey(new Date("2026-08-21T22:30:00Z")), "2026-08-22");
+  });
+
+  it("zero-pads month and day, so the key sorts and compares as a string", () => {
+    assert.equal(turkeyDateKey(new Date("2026-09-02T06:00:00Z")), "2026-09-02");
+  });
+});
+
+describe("formatTurkeyDateKeyLabel", () => {
+  it("adds the weekday to a key", () => {
+    assert.equal(formatTurkeyDateKeyLabel("2026-08-22"), "Sat 22 Aug");
+  });
+
+  it("labels the same day the key does, for an instant past Türkiye midnight", () => {
+    assert.equal(
+      formatTurkeyDateKeyLabel(turkeyDateKey(new Date("2026-08-21T22:30:00Z"))),
+      "Sat 22 Aug",
     );
   });
 });
