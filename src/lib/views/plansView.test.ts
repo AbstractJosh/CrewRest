@@ -238,6 +238,37 @@ describe("assemblePlansView", () => {
       assert.equal(view.upcoming[0].hasEstimates, false);
     });
 
+    it("hands each leg its own booking link and target row", () => {
+      // Both legs, separately: they open different days and different rows, and the return is the
+      // one a pilot is likelier to have left unbought.
+      const view = assemblePlansView(makeInput({ commitments: [plan("both", 20)] }));
+      const card = view.upcoming[0];
+
+      assert.equal(
+        card.outboundBooking.caption,
+        "Opens Thu 20 Aug on ebilet — look for 08:00 → 11:00, train T1.",
+      );
+      assert.ok(
+        card.outboundBooking.bookingUrl.includes("gidisTarih=2026-08-20"),
+        "the stored link must open the day the caption names",
+      );
+      assert.equal(
+        card.returnBooking.caption,
+        "Opens Sat 22 Aug on ebilet — look for 06:00 → 09:00, train T1.",
+      );
+    });
+
+    it("marks a trip the pilot is already back from as past, so the card can drop the links", () => {
+      // ebilet will not sell a departed date, so the hand-off has to go; the card can only know
+      // that if the split it was sorted by rides along on it.
+      const view = assemblePlansView(
+        makeInput({ commitments: [plan("done", 1), plan("ahead", 20)] }),
+      );
+
+      assert.equal(view.past[0].isPast, true);
+      assert.equal(view.upcoming[0].isPast, false);
+    });
+
     it("carries notes through unchanged, including interior line breaks", () => {
       const withNotes = plan("noted", 20, { notes: "Meet Ali\n\nBring the paperwork" });
       const withoutNotes = plan("bare", 22, { notes: null });

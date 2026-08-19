@@ -11,6 +11,7 @@ import { Stamp } from "@/components/ui/Stamp";
 import { Ticket, TicketBody, Perforation, TicketStub } from "@/components/ui/Ticket";
 import TimeStack from "@/components/domain/TimeStack";
 import RouteLine from "@/components/domain/RouteLine";
+import BookingHandoff from "@/components/domain/BookingHandoff";
 
 export default function PlanCard({
   plan,
@@ -127,6 +128,28 @@ export default function PlanCard({
             <TimeStack at={plan.returnArrivalAt} size="sm" />
           </div>
         </div>
+
+        {/*
+          Hidden while cancelled: a dropped trip should not be offering to sell tickets for
+          itself. "Restore" brings the links back along with everything else.
+
+          Hidden once past for the stronger version of the same reason: ebilet cannot sell a
+          departed date, so the link is dead and its caption names a day the site will not open.
+        */}
+        {!plan.isCancelled && !plan.isPast && (
+          <div className="flex flex-col gap-3">
+            <BookingHandoff
+              label="Buy the outbound on TCDD"
+              url={plan.outboundBooking.bookingUrl}
+              caption={plan.outboundBooking.caption}
+            />
+            <BookingHandoff
+              label="Buy the return on TCDD"
+              url={plan.returnBooking.bookingUrl}
+              caption={plan.returnBooking.caption}
+            />
+          </div>
+        )}
 
         {plan.notes || notesOpen ? (
           <div>
